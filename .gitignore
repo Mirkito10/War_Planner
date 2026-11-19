@@ -1,0 +1,21 @@
+# Cache & runtime data
+.cache/
+__pycache__/
+*.py[cod]
+*.log
+
+# Local Windows launchers & tunnel scripts (not needed for Vercel/GitHub)
+*.bat
+*.cmd
+tunnel.py
+
+# Local environment & Vercel metadata
+.vercel/
+.env
+.env.local
+.env.*.local
+
+# Temporary / OS files
+scratch/
+.DS_Store
+Thumbs.db

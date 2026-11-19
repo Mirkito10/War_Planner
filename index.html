@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>War Planner · MCOC Tactical Suite</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#121829" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="War Planner" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <link rel="stylesheet" href="styles.css?v=17" />
+    <link rel="stylesheet" href="overrides.css?v=17" />
+    <script>
+      // Force update of service workers to avoid stale cache locks
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          for (const reg of regs) {
+            reg.update().catch(() => {});
+          }
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <!-- PANTALLA DE ACCESO RESTRINGIDO (AUTH GATE: SOLO CÓDIGO) -->
+    <div class="auth-gate-wrapper" id="authGateScreen" style="display:flex;">
+      <div class="auth-gate-card">
+        <div class="auth-gate-emblem">⚔️</div>
+        <p class="auth-eyebrow" data-i18n="authEyebrow">MCOC TACTICAL SUITE</p>
+        <h2 class="auth-title" data-i18n="authTitle">Acceso con Código</h2>
+        <p class="auth-subtitle" data-i18n="authSubtitle">Ingresa el código de acceso para desbloquear el planificador de guerra.</p>
+
+        <form id="authLoginForm" class="auth-form" onsubmit="return false;">
+          <div class="auth-field-group">
+            <label for="authCodeInput" data-i18n="authCodeLabel">🔑 Código de Acceso</label>
+            <div class="auth-code-wrap">
+              <input type="password" id="authCodeInput" placeholder="Ingresa el código..." required autocomplete="current-password" autofocus />
+              <button type="button" class="toggle-password-btn" id="toggleCodeVisibilityBtn" title="Mostrar/ocultar código">👁️</button>
+            </div>
+          </div>
+
+          <div class="auth-error-banner" id="authErrorMsg" style="display:none;"></div>
+
+          <button type="submit" class="primary auth-submit-btn" id="authSubmitBtn">
+            <span data-i18n="authEnterBtn">🔓 Entrar al Planificador</span>
+          </button>
+        </form>
+
+        <div class="auth-gate-footer">
+          <span data-i18n="authFooter">⚔️ War Planner · Acceso protegido por código de alianza</span>
+        </div>
+      </div>
+    </div>
+
+    <header class="hero">
+      <div class="hero-brand">
+        <p class="eyebrow" data-i18n="heroEyebrow">MCOC · GUERRA DE ALIANZAS · SUITE TÁCTICA</p>
+        <h1 data-i18n="warPlanner">War Planner</h1>
+        <p class="subtitle" data-i18n="subtitle">Planifica los caminos, optimiza los slots de atacantes MCOC, asigna invocadores y coordina la ofensiva.</p>
+      </div>
+
+      <div class="hero-controls-panel">
+        <!-- Fila superior: Mapa + Idioma -->
+        <div class="hero-top-row">
+          <div class="map-selector-group">
+            <span class="map-selector-label" id="mapModeLabel" data-i18n="mapLabel">Mapa:</span>
+            <button class="map-btn active" id="mapStandardBtn" data-i18n="standard">Estándar (50 nodos)</button>
+            <button class="map-btn" id="mapBigThingBtn" data-i18n="bigThing">Big Thing (10 nodos)</button>
+          </div>
+          <div class="hero-user-group" style="display:flex; align-items:center; gap:8px;">
+            <button class="lang-btn" id="lockSessionBtn" title="Bloquear / Salir" style="display:none;" data-i18n-title="lockSession">🔒</button>
+            <button class="lang-btn" id="langToggleBtn" title="Switch language / Cambiar idioma">🇬🇧 EN</button>
+          </div>
+        </div>
+
+        <!-- Fila inferior: Acciones principales -->
+        <div class="hero-action-row">
+          <button class="primary" id="demoButton" data-i18n="loadExample">⚡ Cargar ejemplo</button>
+          <button class="secondary" id="exportButton" data-i18n="exportReport">📋 Exportar reporte</button>
+          <button class="secondary" id="exportImageBtn" data-i18n="exportImage">🖼️ Exportar imagen</button>
+          <button class="secondary" id="profileButton" data-i18n="profiles">💾 Perfiles</button>
+          <button class="ghost-btn" id="clearAllBtn" data-i18n="clearMap">🗑️ Limpiar mapa</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Indicador de variante de mapa -->
+    <div class="map-variant-note" id="mapVariantNote">Estándar: 9 caminos de 4 peleas, 3 slots de atacante por camino</div>
+
+    <main>
+      <!-- DASHBOARD RESUMEN -->
+      <section class="dashboard-panel panel" id="battlegroupDashboard">
+        <div class="dash-item stat-coverage">
+          <div class="stat-icon">🛡️</div>
+          <div>
+            <span class="stat-label" data-i18n="coverage">COBERTURA TOTAL</span>
+            <strong class="stat-value" id="dashCoveragePct">0%</strong>
+            <small class="stat-detail" id="dashCoverageNodes">0 / 0</small>
+          </div>
+        </div>
+
+        <div class="dash-item stat-critical clickable-dash" id="dashRiskCard" title="Haz clic para saltar a las peleas sin atacante">
+          <div class="stat-icon">⚠️</div>
+          <div>
+            <span class="stat-label" data-i18n="riskNodes">NODOS DE RIESGO</span>
+            <strong class="stat-value" id="dashRiskCount">0</strong>
+            <small class="stat-detail" id="dashRiskDetail" data-i18n="noDefendersYet">Sin defensores aún</small>
+          </div>
+        </div>
+
+        <div class="dash-item stat-mvp">
+          <div class="stat-icon">👑</div>
+          <div>
+            <span class="stat-label" data-i18n="topAttacker">TOP ATACANTE DEL BG</span>
+            <div class="stat-mvp-box" id="dashTopAttacker">
+              <span class="stat-detail" data-i18n="assignBossFirst">Asigna defensores para ver al MVP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contenedor opcional de preluchas requeridas en la guerra -->
+        <div class="dash-item stat-prefights" id="dashPrefightsItem" style="display:none;">
+          <div class="stat-icon">🔄</div>
+          <div>
+            <span class="stat-label" data-i18n="requiredPrefights">PRELUCHAS REQUERIDAS</span>
+            <div class="stat-detail" id="dashPrefightsList" style="color:#f59e0b; font-weight:700;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- NAVEGACIÓN PRINCIPAL ENTRE MODOS -->
+      <section class="main-navigation-bar">
+        <div class="mode-tabs" role="tablist">
+          <button class="mode-tab active" id="tabModePlan">
+            <span class="tab-icon">⚔️</span>
+            <span class="tab-title" data-i18n="planTab">Plan de Guerra</span>
+          </button>
+          <button class="mode-tab" id="tabModeMap">
+            <span class="tab-icon">🛡️</span>
+            <span class="tab-title" data-i18n="mapTab">Defensores del Mapa</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- VISTA 1: PLAN DE GUERRA -->
+      <section id="planViewSection" class="mode-section active">
+        <div class="results panel" id="results">
+          <div class="results-heading">
+            <div>
+              <p class="eyebrow" data-i18n="tacticalStrategy">ASIGNACIÓN Y ESTRATEGIA TÁCTICA</p>
+              <h2 data-i18n="tacticalPlan">Plan de Guerra MCOC</h2>
+              <p class="stat-detail" data-i18n="tacticalPlanSub">Haz clic en cualquier slot para modificarlo. Haz clic en el atacante de cada pelea para asignarlo manualmente o en ✕ para desasignar solo la pelea.</p>
+            </div>
+            <div class="results-meta">
+              <div class="assignment-mode-group" id="assignmentModeGroup">
+                <button class="mode-toggle-btn active" id="modeFixedBtn" data-i18n="modeFixed">📌 Modo Fijo</button>
+                <button class="mode-toggle-btn" id="modeFlexibleBtn" data-i18n="modeFlexible">🔀 Modo Flexible</button>
+              </div>
+              <button class="primary small-btn" id="optimizeFlexibleBtn" style="display:none;" data-i18n="optimizeFlexible">⚡ Optimizar</button>
+              <button class="filter-toggle-btn" id="filterUncoveredBtn" data-i18n="onlyUncovered">⚠️ Solo sin atacante</button>
+              <p id="coverage"></p>
+              <button class="ghost-btn small" id="resetAllCustomBtn" data-i18n="resetSuggested">↺ Restablecer sugeridos</button>
+            </div>
+          </div>
+          <div id="planOutput" class="plan-grid" data-i18n="emptyPlanPlaceholder">El plan aparecerá aquí al asignar defensores o pulsar "⚡ Cargar ejemplo".</div>
+        </div>
+      </section>
+
+      <!-- VISTA 2: MAPA DE DEFENSORES -->
+      <section id="mapViewSection" class="mode-section" style="display:none;">
+        <div class="map-helper-banner">
+          <span data-i18n="helperBanner">💡 <strong>Cómo agregar defensores:</strong> Haz clic en el botón <strong>"➕ Elegir defensor"</strong> de cualquier nodo, o escribe en su buscador. Presiona <strong>Enter</strong> para seleccionar el primer campeón.</span>
+        </div>
+
+        <section class="toolbar">
+          <div class="tabs" role="tablist">
+            <button class="tab active" id="tabRoutesBtn" data-view="routes" data-i18n="mainRoutes">Caminos principales (1–9)</button>
+            <button class="tab" id="tabIslandsBtn" data-view="islands" data-i18n="miniBossIsles">Islas de mini-jefes (A, B, C)</button>
+            <button class="tab" id="tabBossBtn" data-view="boss" data-i18n="bossIsle">Isla del jefe final</button>
+          </div>
+          <div class="toolbar-search">
+            <input type="text" id="quickNodeSearch" data-i18n-placeholder="searchMap" placeholder="🔍 Buscar nodo o campeón..." />
+          </div>
+        </section>
+
+        <section id="routes" class="board view active"></section>
+        <section id="islands" class="board view"></section>
+        <section id="boss" class="board view"></section>
+      </section>
+    </main>
+
+    <!-- PLANTILLA DE TARJETA DE NODO -->
+    <template id="nodeTemplate">
+      <article class="node-card" data-node="">
+        <div class="node-top">
+          <strong class="node-number"></strong>
+          <span class="class-badge-pill" style="display:none;"></span>
+          <span class="fight-status"></span>
+        </div>
+        <div class="defender-slot-box">
+          <div class="defender-empty-box" title="Haz clic para seleccionar defensor">
+            <span class="add-def-icon">➕</span>
+            <span class="add-def-text">Elegir defensor</span>
+          </div>
+          <div class="selected-champion" style="display:none;">
+            <div class="champ-avatar-frame">
+              <img class="defender-image" alt="" />
+            </div>
+            <div class="champ-meta">
+              <span class="defender-name"></span>
+              <span class="defender-class"></span>
+            </div>
+            <div class="defender-actions">
+              <button class="change-def-btn" type="button" title="Cambiar defensor">✎</button>
+              <button class="remove-def-btn" type="button" title="Quitar defensor">&times;</button>
+            </div>
+          </div>
+        </div>
+        <div class="autocomplete-wrapper">
+          <div class="search-input-box">
+            <span class="search-icon">🔍</span>
+            <input class="defender-input" type="text" autocomplete="off" />
+          </div>
+          <div class="autocomplete-dropdown" style="display:none;"></div>
+        </div>
+        <div class="node-note-wrapper">
+          <input class="node-tactical-note" type="text" />
+        </div>
+        <small class="counter-note"></small>
+      </article>
+    </template>
+
+    <!-- MODAL DE SELECCIÓN DE DEFENSOR -->
+    <div class="modal-overlay" id="defenderPickerModal" style="display:none;">
+      <div class="modal-dialog large">
+        <div class="modal-header">
+          <div>
+            <span class="eyebrow" id="defModalSubtitle">NODO 1</span>
+            <h3 id="defModalTitle" data-i18n="selectDefender">Seleccionar Defensor</h3>
+          </div>
+          <button class="close-modal-btn" id="closeDefModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-search-row">
+            <input type="text" id="defSearchInput" placeholder="🔍 Buscar campeón por nombre... (Enter para elegir el 1°)" autocomplete="off" />
+          </div>
+          <div class="class-filter-chips" id="defClassChips">
+            <button class="chip active" data-def-class="ALL" data-i18n="allClass">Todos</button>
+            <button class="chip" data-def-class="COSMIC" data-i18n="cosClass">Cósmico</button>
+            <button class="chip" data-def-class="TECH" data-i18n="techClass">Tecnológico</button>
+            <button class="chip" data-def-class="MUTANT" data-i18n="mutClass">Mutante</button>
+            <button class="chip" data-def-class="SKILL" data-i18n="skiClass">Habilidad</button>
+            <button class="chip" data-def-class="SCIENCE" data-i18n="sciClass">Científico</button>
+            <button class="chip" data-def-class="MYSTIC" data-i18n="mysClass">Místico</button>
+          </div>
+          <div class="popular-defenders-row">
+            <span class="wheel-title" data-i18n="popularDefs">Defensores Populares en Guerra:</span>
+            <div class="popular-chips" id="popularDefChips"></div>
+          </div>
+          <div class="all-champions-grid" id="allDefendersGrid"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary" id="clearNodeDefBtn" data-i18n="removeClass">Quitar defensor</button>
+          <button class="secondary" id="cancelDefModalBtn" data-i18n="cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE ASIGNACIÓN / CAMBIO DE ATACANTE -->
+    <div class="modal-overlay" id="slotPickerModal" style="display:none;">
+      <div class="modal-dialog large">
+        <div class="modal-header">
+          <div>
+            <span class="eyebrow" id="slotModalSubtitle">CAMINO 1 · SLOT 1</span>
+            <h3 id="slotModalTitle" data-i18n="modifyAttacker">Modificar Atacante</h3>
+          </div>
+          <button class="close-modal-btn" id="closeSlotModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="slot-modal-tabs">
+            <button class="slot-tab active" data-slot-tab="recommended" data-i18n="recommendedCounters">Counters recomendados</button>
+            <button class="slot-tab" data-slot-tab="all" data-i18n="allChamps">Todos los campeones</button>
+          </div>
+          <!-- Pestaña 1: Counters con datos de CereBro -->
+          <div class="slot-tab-pane active" id="paneRecommended">
+            <p class="pane-hint" data-i18n="paneRecommendedHint">Atacantes con victorias registradas en CereBro. <strong>Si tu atacante no tiene video, búscalo en la pestaña "Todos" para asignarlo manualmente.</strong></p>
+            <div class="recommended-counters-list" id="recommendedCountersList"></div>
+          </div>
+          <!-- Pestaña 2: Búsqueda libre en los 332 campeones -->
+          <div class="slot-tab-pane" id="paneAll">
+            <p class="pane-hint" data-i18n="paneAllHint">Asigna cualquier campeón aunque no tenga video. Presiona <strong>Enter</strong> para seleccionar el primero.</p>
+            <div class="modal-search-row">
+              <input type="text" id="slotSearchInput" data-i18n-placeholder="searchAttackerPlaceholder" placeholder="🔍 Buscar por nombre... (Enter para elegir el 1°)" autocomplete="off" />
+            </div>
+            <div class="class-filter-chips" id="slotClassChips">
+              <button class="chip active" data-class="ALL" data-i18n="allClass">Todos</button>
+              <button class="chip" data-class="COSMIC" data-i18n="cosClass">Cósmico</button>
+              <button class="chip" data-class="TECH" data-i18n="techClass">Tecnológico</button>
+              <button class="chip" data-class="MUTANT" data-i18n="mutClass">Mutante</button>
+              <button class="chip" data-class="SKILL" data-i18n="skiClass">Habilidad</button>
+              <button class="chip" data-class="SCIENCE" data-i18n="sciClass">Científico</button>
+              <button class="chip" data-class="MYSTIC" data-i18n="mysClass">Místico</button>
+            </div>
+            <div class="all-champions-grid" id="allChampionsGrid"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary" id="emptySlotBtn" data-i18n="emptySlot">Vaciar este slot</button>
+          <button class="secondary" id="cancelSlotModalBtn" data-i18n="cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE ASIGNACIÓN DE JEFES, SUB-JEFES Y MINIS -->
+    <div class="modal-overlay" id="bossAssignModal" style="display:none;">
+      <div class="modal-dialog large">
+        <div class="modal-header">
+          <div>
+            <span class="eyebrow" id="bossAssignSubtitle">NODO 37 · DEFENSOR</span>
+            <h3 id="bossAssignTitle" data-i18n="assignBossTitle">Asignar Invocador y Atacante</h3>
+          </div>
+          <button class="close-modal-btn" id="closeBossAssignModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="stat-detail" style="margin-bottom:14px;" data-i18n="bossModalInstruction">
+            Elige el aspirante y el campeón de su equipo que cubrirá esta pelea:
+          </p>
+          <div class="boss-player-list" id="bossPlayerList"></div>
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="ghost-btn" id="resetBossToAutoBtn" data-i18n="resetToAuto">🤖 Recomendación Auto</button>
+            <button class="ghost-btn danger" id="unassignBossBtn" data-i18n="unassignBoss">❌ Dejar Sin Asignar</button>
+          </div>
+          <button class="secondary" id="cancelBossAssignModalBtn" data-i18n="cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE EXPORTACIÓN TEXTO -->
+    <div class="modal-overlay" id="exportModal" style="display:none;">
+      <div class="modal-dialog large">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" data-i18n="exportReport2">REPORTE TÁCTICO</p>
+            <h3 data-i18n="exportReport">Exportar Plan de Guerra</h3>
+          </div>
+          <button class="close-modal-btn" id="closeExportModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="pane-hint" data-i18n="exportSub">Copia este reporte para Discord, WhatsApp o Line:</p>
+          <div class="discord-chunks-bar" id="discordChunksBar" style="display:none;"></div>
+          <textarea class="export-textarea" id="exportTextarea" readonly></textarea>
+        </div>
+        <div class="modal-footer">
+          <span class="copy-success-msg" id="copySuccessMsg" style="display:none;" data-i18n="copied">¡Copiado! ✓</span>
+          <button class="primary" id="copyExportBtn" data-i18n="copyClipboard">📋 Copiar al portapapeles</button>
+          <button class="secondary" id="closeExportBtn" data-i18n="close">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE PERFILES -->
+    <div class="modal-overlay" id="profileModal" style="display:none;">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" data-i18n="profilesEyebrow">CONFIGURACIONES</p>
+            <h3 data-i18n="profilesTitle">Guardar / Cargar Perfiles de Guerra</h3>
+          </div>
+          <button class="close-modal-btn" id="closeProfileModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="profile-section">
+            <h4 data-i18n="saveCurrentPlan">Guardar plan actual</h4>
+            <div class="save-row">
+              <input type="text" id="profileNameInput" data-i18n-placeholder="profileNamePlaceholder" placeholder="Nombre del perfil..." />
+              <button class="primary" id="saveCurrentProfileBtn" data-i18n="save">Guardar</button>
+            </div>
+          </div>
+          <hr class="modal-divider" />
+          <div class="profile-section">
+            <h4 data-i18n="savedProfiles">Perfiles guardados</h4>
+            <div class="profiles-list" id="profilesList">
+              <p class="text-muted" data-i18n="noProfiles">No hay perfiles guardados.</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="secondary" id="closeProfileBtn" data-i18n="close">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE RED LOCAL Y CLOUDFLARE -->
+    <div class="modal-overlay" id="networkModal" style="display:none;">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" data-i18n="networkTitleEyebrow">DESPLIEGUE REMOTO Y LOCAL</p>
+            <h3 data-i18n="networkTitle">Acceso en Celular y Cloudflare</h3>
+          </div>
+          <button class="close-modal-btn" id="closeNetworkModalBtn">&times;</button>
+        </div>
+        <div class="modal-body" style="text-align:center;">
+          <!-- Opción 1: Cloudflare Tunnel -->
+          <div style="margin-bottom:18px; text-align:left;">
+            <span class="stat-label" data-i18n="networkCfTitle" style="display:block; margin-bottom:6px; color:var(--accent); font-weight:700;">
+              ☁️ ENLACE SEGURO CLOUDFLARE (HTTPS / INTERNET):
+            </span>
+            <div style="background:var(--panel2); padding:10px 14px; border-radius:8px; border:1px solid var(--accent); display:flex; align-items:center; justify-content:space-between; gap:10px;">
+              <code id="cfUrlDisplay" style="font-size:13.5px; font-weight:700; color:var(--accent); word-break:break-all;">Iniciando túnel...</code>
+              <button class="primary small" id="copyCfUrlBtn" data-i18n="copy">Copiar</button>
+            </div>
+            <small data-i18n="networkCfDesc" style="color:var(--muted); font-size:11px; margin-top:4px; display:block;">
+              Funciona desde cualquier parte del mundo (datos móviles o Wi-Fi) sin configurar router.
+            </small>
+          </div>
+
+          <!-- Opción 2: Red Local Wi-Fi -->
+          <div style="margin-bottom:18px; text-align:left;">
+            <span class="stat-label" data-i18n="networkLanTitle" style="display:block; margin-bottom:6px; color:#93c5fd; font-weight:700;">
+              📶 ENLACE RED LOCAL (MISMO WI-FI):
+            </span>
+            <div style="background:var(--panel2); padding:10px 14px; border-radius:8px; border:1px solid rgba(147, 197, 253, 0.4); display:flex; align-items:center; justify-content:space-between; gap:10px;">
+              <code id="lanUrlDisplay" style="font-size:13.5px; font-weight:700; color:#93c5fd; word-break:break-all;">Cargando...</code>
+              <button class="secondary small" id="copyLanUrlBtn" data-i18n="copy">Copiar</button>
+            </div>
+          </div>
+
+          <!-- Código QR -->
+          <div id="lanQrCodeContainer" style="margin:12px auto; width:180px; height:180px; background:#fff; border-radius:12px; padding:10px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,0,0,0.3);">
+            <img id="lanQrImage" src="" alt="QR Code" style="width:160px; height:160px; display:none;" />
+            <div id="lanQrLoading" data-i18n="generatingQr" style="color:#000; font-size:12px;">Generando QR...</div>
+          </div>
+
+          <!-- Credenciales: Solo código de acceso -->
+          <div style="background:rgba(245, 158, 11, 0.12); border:1px solid rgba(245, 158, 11, 0.35); border-radius:8px; padding:10px; margin-top:12px; font-size:12px; text-align:left;">
+            <strong data-i18n="authReqTitle">🔑 Código de acceso requerido:</strong> <code style="background:#000; padding:2px 6px; border-radius:4px; color:#f59e0b; font-weight:700;">theboys</code>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="copy-success-msg" id="lanCopySuccessMsg" style="display:none;" data-i18n="copied">¡Copiado! ✓</span>
+          <button class="secondary" id="closeNetworkBtn" data-i18n="close">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js?v=17"></script>
+  </body>
+</html>
