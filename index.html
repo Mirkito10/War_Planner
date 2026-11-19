@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -12,8 +12,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="War Planner" />
     <link rel="apple-touch-icon" href="icon-192.png" />
-    <link rel="stylesheet" href="styles.css?v=17" />
-    <link rel="stylesheet" href="overrides.css?v=17" />
+    <link rel="stylesheet" href="styles.css?v=19" />
+    <link rel="stylesheet" href="overrides.css?v=19" />
     <script>
       // Force update of service workers to avoid stale cache locks
       if ('serviceWorker' in navigator) {
@@ -26,32 +26,32 @@
     </script>
   </head>
   <body>
-    <!-- PANTALLA DE ACCESO RESTRINGIDO (AUTH GATE: SOLO CÓDIGO) -->
+    <!-- ACCESS GATE (CODE ONLY) -->
     <div class="auth-gate-wrapper" id="authGateScreen" style="display:flex;">
       <div class="auth-gate-card">
         <div class="auth-gate-emblem">⚔️</div>
         <p class="auth-eyebrow" data-i18n="authEyebrow">MCOC TACTICAL SUITE</p>
-        <h2 class="auth-title" data-i18n="authTitle">Acceso con Código</h2>
-        <p class="auth-subtitle" data-i18n="authSubtitle">Ingresa el código de acceso para desbloquear el planificador de guerra.</p>
+        <h2 class="auth-title" data-i18n="authTitle">Access Code Required</h2>
+        <p class="auth-subtitle" data-i18n="authSubtitle">Enter the alliance access code to unlock the war planner.</p>
 
         <form id="authLoginForm" class="auth-form" onsubmit="return false;">
           <div class="auth-field-group">
-            <label for="authCodeInput" data-i18n="authCodeLabel">🔑 Código de Acceso</label>
+            <label for="authCodeInput" data-i18n="authCodeLabel">🔑 Access Code</label>
             <div class="auth-code-wrap">
-              <input type="password" id="authCodeInput" placeholder="Ingresa el código..." required autocomplete="current-password" autofocus />
-              <button type="button" class="toggle-password-btn" id="toggleCodeVisibilityBtn" title="Mostrar/ocultar código">👁️</button>
+              <input type="password" id="authCodeInput" placeholder="Enter access code..." required autocomplete="current-password" autofocus />
+              <button type="button" class="toggle-password-btn" id="toggleCodeVisibilityBtn" title="Show/hide code">👁️</button>
             </div>
           </div>
 
           <div class="auth-error-banner" id="authErrorMsg" style="display:none;"></div>
 
           <button type="submit" class="primary auth-submit-btn" id="authSubmitBtn">
-            <span data-i18n="authEnterBtn">🔓 Entrar al Planificador</span>
+            <span data-i18n="authEnterBtn">🔓 Enter War Planner</span>
           </button>
         </form>
 
         <div class="auth-gate-footer">
-          <span data-i18n="authFooter">⚔️ War Planner · Acceso protegido por código de alianza</span>
+          <span data-i18n="authFooter">⚔️ War Planner · Protected by alliance access code</span>
         </div>
       </div>
     </div>
@@ -79,11 +79,12 @@
 
         <!-- Fila inferior: Acciones principales -->
         <div class="hero-action-row">
-          <button class="primary" id="demoButton" data-i18n="loadExample">⚡ Cargar ejemplo</button>
-          <button class="secondary" id="exportButton" data-i18n="exportReport">📋 Exportar reporte</button>
-          <button class="secondary" id="exportImageBtn" data-i18n="exportImage">🖼️ Exportar imagen</button>
-          <button class="secondary" id="profileButton" data-i18n="profiles">💾 Perfiles</button>
-          <button class="ghost-btn" id="clearAllBtn" data-i18n="clearMap">🗑️ Limpiar mapa</button>
+          <button class="primary" id="demoButton" data-i18n="loadExample">⚡ Load Example</button>
+          <!-- Temporarily disabled -->
+          <button class="secondary" id="exportButton" data-i18n="exportReport" style="display:none;" disabled>📋 Export Report</button>
+          <button class="secondary" id="exportImageBtn" data-i18n="exportImage" style="display:none;" disabled>🖼️ Export Image</button>
+          <button class="secondary" id="profileButton" data-i18n="profiles">💾 Saved Wars</button>
+          <button class="ghost-btn" id="clearAllBtn" data-i18n="clearMap">🗑️ Clear Map</button>
         </div>
       </div>
     </header>
@@ -364,34 +365,34 @@
       </div>
     </div>
 
-    <!-- MODAL DE PERFILES -->
+    <!-- MODAL DE GUERRAS GUARDADAS -->
     <div class="modal-overlay" id="profileModal" style="display:none;">
       <div class="modal-dialog">
         <div class="modal-header">
           <div>
-            <p class="eyebrow" data-i18n="profilesEyebrow">CONFIGURACIONES</p>
-            <h3 data-i18n="profilesTitle">Guardar / Cargar Perfiles de Guerra</h3>
+            <p class="eyebrow" data-i18n="profilesEyebrow">WAR SNAPSHOTS &amp; TEMPLATES</p>
+            <h3 data-i18n="profilesTitle">Save / Load War Plans</h3>
           </div>
           <button class="close-modal-btn" id="closeProfileModalBtn">&times;</button>
         </div>
         <div class="modal-body">
           <div class="profile-section">
-            <h4 data-i18n="saveCurrentPlan">Guardar plan actual</h4>
+            <h4 data-i18n="saveCurrentPlan">Save current war plan</h4>
             <div class="save-row">
-              <input type="text" id="profileNameInput" data-i18n-placeholder="profileNamePlaceholder" placeholder="Nombre del perfil..." />
-              <button class="primary" id="saveCurrentProfileBtn" data-i18n="save">Guardar</button>
+              <input type="text" id="profileNameInput" data-i18n-placeholder="profileNamePlaceholder" placeholder="e.g. BG1 Template, vs Alliance X..." />
+              <button class="primary" id="saveCurrentProfileBtn" data-i18n="save">Save</button>
             </div>
           </div>
           <hr class="modal-divider" />
           <div class="profile-section">
-            <h4 data-i18n="savedProfiles">Perfiles guardados</h4>
+            <h4 data-i18n="savedProfiles">Saved war plans</h4>
             <div class="profiles-list" id="profilesList">
-              <p class="text-muted" data-i18n="noProfiles">No hay perfiles guardados.</p>
+              <p class="text-muted" data-i18n="noProfiles">No saved war plans yet.</p>
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="secondary" id="closeProfileBtn" data-i18n="close">Cerrar</button>
+          <button class="secondary" id="closeProfileBtn" data-i18n="close">Close</button>
         </div>
       </div>
     </div>
@@ -450,6 +451,6 @@
       </div>
     </div>
 
-    <script src="app.js?v=17"></script>
+    <script src="app.js?v=19"></script>
   </body>
 </html>

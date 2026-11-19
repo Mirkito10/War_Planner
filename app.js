@@ -19,7 +19,7 @@ const LANG = {
     loadExample: '⚡ Cargar ejemplo',
     exportReport: '📋 Exportar reporte',
     exportImage: '🖼️ Exportar imagen',
-    profiles: '💾 Perfiles',
+    profiles: '💾 Guerras Guardadas',
     clearMap: '🗑️ Limpiar mapa',
     coverage: 'COBERTURA TOTAL',
     riskNodes: 'NODOS DE RIESGO',
@@ -73,13 +73,13 @@ const LANG = {
     copyClipboard: '📋 Copiar al portapapeles',
     copied: '¡Copiado! ✓',
     close: 'Cerrar',
-    profilesEyebrow: 'CONFIGURACIONES',
-    profilesTitle: 'Guardar / Cargar Perfiles',
-    saveCurrentPlan: 'Guardar plan actual',
-    profileNamePlaceholder: 'Nombre del perfil...',
+    profilesEyebrow: 'PLANTILLAS Y GUERRAS',
+    profilesTitle: 'Guardar / Cargar Planes de Guerra',
+    saveCurrentPlan: 'Guardar plan de guerra actual',
+    profileNamePlaceholder: 'Ej: Plantilla BG1, vs Alianza X...',
     save: 'Guardar',
-    savedProfiles: 'Perfiles guardados',
-    noProfiles: 'No hay perfiles guardados.',
+    savedProfiles: 'Planes de guerra guardados',
+    noProfiles: 'Aún no hay planes de guerra guardados.',
     load: 'Cargar',
     delete: '🗑️',
     loading: '⏳ Cargando...',
@@ -215,7 +215,7 @@ const LANG = {
     loadExample: '⚡ Load Example',
     exportReport: '📋 Export Report',
     exportImage: '🖼️ Export Image',
-    profiles: '💾 Profiles',
+    profiles: '💾 Saved Wars',
     clearMap: '🗑️ Clear Map',
     coverage: 'TOTAL COVERAGE',
     riskNodes: 'RISK NODES',
@@ -269,13 +269,13 @@ const LANG = {
     copyClipboard: '📋 Copy to clipboard',
     copied: 'Copied! ✓',
     close: 'Close',
-    profilesEyebrow: 'SETTINGS',
-    profilesTitle: 'Save / Load Profiles',
-    saveCurrentPlan: 'Save current plan',
-    profileNamePlaceholder: 'Profile name...',
+    profilesEyebrow: 'WAR SNAPSHOTS & TEMPLATES',
+    profilesTitle: 'Save / Load War Plans',
+    saveCurrentPlan: 'Save current war plan',
+    profileNamePlaceholder: 'e.g. BG1 Template, vs Alliance X...',
     save: 'Save',
-    savedProfiles: 'Saved Profiles',
-    noProfiles: 'No saved profiles.',
+    savedProfiles: 'Saved war plans',
+    noProfiles: 'No saved war plans yet.',
     load: 'Load',
     delete: '🗑️',
     loading: '⏳ Loading...',
@@ -422,10 +422,11 @@ function renderLangButton() {
   }
 }
 
-let currentLang = localStorage.getItem('war-planner-lang') || 'es';
-function t(k) { return LANG[currentLang]?.[k] || LANG.es[k] || k; }
+let currentLang = localStorage.getItem('war-planner-lang') || 'en';
+function t(k) { return LANG[currentLang]?.[k] || LANG.en[k] || LANG.es[k] || k; }
 
 function applyLang() {
+  document.documentElement.lang = currentLang;
   document.querySelectorAll('[data-i18n]').forEach(el => el.innerHTML = t(el.dataset.i18n));
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => el.placeholder = t(el.dataset.i18nPlaceholder));
   document.querySelectorAll('[data-i18n-title]').forEach(el => el.title = t(el.dataset.i18nTitle));
@@ -3467,6 +3468,7 @@ document.querySelector('#copyCfUrlBtn')?.addEventListener('click', async () => {
 
 // ─── INITIALIZATION ───
 async function init() {
+  applyLang();
   await checkAuthStatus();
 
   if (window.location.search.includes('map=BIG_THING')) {
