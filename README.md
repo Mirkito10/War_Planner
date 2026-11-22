@@ -7,7 +7,7 @@ A tactical **Alliance War (AW)** planner for **Marvel Contest of Champions** bui
 ## ✨ Key Features
 
 ### 🗺️ Dual War Map Support
-- **Standard Map (50 Nodes):** 9 main paths split into **Section 1** and **Section 2**, 3 Mini-Boss Islands (N37–N45), Sub-Boss lanes (N46–N49), Final Boss (N50), plus an optional **10th Reserve Player**.
+- **Standard Map (50 Nodes):** 9 main paths split into **Section 1** and **Section 2**, 3 Mini-Boss Islands (N37–N45), Sub-Boss lanes (N46–N49), Final Boss (N50), plus an optional **10th Backup Player**.
 - **The Big Thing (10 Nodes):** 10 single-node paths tailored for the Big Thing map variant with expanded attacker slots.
 
 ### 🔍 Live CereBro Integration
@@ -18,7 +18,7 @@ A tactical **Alliance War (AW)** planner for **Marvel Contest of Champions** bui
 ### 🔀 Fixed Paths vs. Flexible Sections
 - **Fixed Mode:** Assigns each summoner a traditional path (keeping Section 1 and Section 2 aligned on the same lane) and suggests multiple attacker team variations.
 - **Flexible Mode:** Combines Section 1 and Section 2 segments across summoners to maximize counter coverage and team synergies.
-- **10th Player (Reserve):** Optional backup summoner with 3 attacker slots that can cover remaining uncovered fights across sections or assist on boss islands.
+- **10th Player (Backup):** Optional backup summoner with 3 attacker slots that can cover remaining uncovered fights across sections or assist on boss islands.
 
 ### 🎯 Full Manual Control
 - **Auto-managed Team Slots:** Manually assigning a champion to a fight automatically adds them to an open team slot (or warns you if all 3 slots are already full).

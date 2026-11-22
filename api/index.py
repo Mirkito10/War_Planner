@@ -70,9 +70,9 @@ class handler(BaseHTTPRequestHandler):
                 body = {}
 
             if route == 'auth/login':
-                code = str(body.get('code', '')).strip().lower()
-                if code != core.AUTH_CODE.lower():
-                    return self._send_json({'error': 'Código de acceso incorrecto.'}, 401)
+                code = str(body.get('code', '')).strip()
+                if not core.verify_access_code(code):
+                    return self._send_json({'error': 'Invalid access code.'}, 401)
                 token = core.create_auth_token()
                 secure_flag = '; Secure' if self._is_https() else ''
                 # Scope cookie strictly to /api/auth so Vercel Edge CDN caches /api/counters & /api/champions

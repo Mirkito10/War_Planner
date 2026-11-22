@@ -84,9 +84,9 @@ class Handler(SimpleHTTPRequestHandler):
                 body = {}
 
             if p.path == '/api/auth/login':
-                code = str(body.get('code', '')).strip().lower()
-                if code != core.AUTH_CODE.lower():
-                    return self.api({'error': 'Código de acceso incorrecto.'}, 401)
+                code = str(body.get('code', '')).strip()
+                if not core.verify_access_code(code):
+                    return self.api({'error': 'Invalid access code.'}, 401)
 
                 token = core.create_auth_token()
                 res_data = {'success': True, 'token': token}

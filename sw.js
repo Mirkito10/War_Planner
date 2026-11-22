@@ -1,4 +1,4 @@
-const CACHE_NAME = 'war-planner-v9';
+const CACHE_NAME = 'war-planner-v10';
 
 self.addEventListener('install', event => {
   self.skipWaiting();

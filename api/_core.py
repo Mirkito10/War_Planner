@@ -17,10 +17,20 @@ CACHE.mkdir(parents=True, exist_ok=True)
 IMG_CACHE = CACHE / 'img'
 IMG_CACHE.mkdir(parents=True, exist_ok=True)
 
-AUTH_CODE = os.environ.get('WAR_PLANNER_CODE', 'theboys').strip()
-AUTH_SECRET = os.environ.get('WAR_PLANNER_SECRET', f'war-planner-hmac-v1-{AUTH_CODE}').encode('utf-8')
+_raw_codes = os.environ.get('WAR_PLANNER_CODES') or os.environ.get('WAR_PLANNER_CODE') or 'theboys'
+AUTH_CODES = [c.strip().lower() for c in _raw_codes.split(',') if c.strip()] or ['theboys']
+AUTH_CODE = AUTH_CODES[0]
+AUTH_SECRET = os.environ.get('WAR_PLANNER_SECRET', f"war-planner-hmac-v1-{','.join(AUTH_CODES)}").encode('utf-8')
 TOKEN_TTL_SECONDS = 2592000  # 30 days
 CEREBRO_SEMAPHORE = threading.Semaphore(8)
+
+
+def verify_access_code(code):
+    """Validates an access code against configured WAR_PLANNER_CODES / WAR_PLANNER_CODE."""
+    if not code:
+        return False
+    candidate = str(code).strip().lower()
+    return any(hmac.compare_digest(candidate, valid) for valid in AUTH_CODES)
 
 MAP_URLS = {
     'STANDARD': 'https://cerebro-bot.com/war-videos?map=STANDARD',

@@ -206,7 +206,11 @@ const LANG = {
     discordSplitInfo: 'Dividido automáticamente para Discord (máx. 2,000 car. por mensaje):',
     discordPart: 'Parte',
     discordViewAll: 'Ver todo',
-    copyAllBtn: '📋 Copiar todo'
+    copyAllBtn: '📋 Copiar todo',
+    islandBossAssignedHeader: 'Islas / Jefes asignados',
+    islandTag: 'Isla',
+    bossTag: 'Jefe',
+    uncoveredIslandsHeading: 'Counters para Islas / Jefes sin cubrir'
   },
   en: {
     warPlanner: 'War Planner',
@@ -353,9 +357,9 @@ const LANG = {
     modeFixed: '📌 Fixed Mode',
     modeFlexible: '🔀 Flexible Mode',
     optimizeFlexible: '⚡ Auto-optimize Sections',
-    reservePlayer: 'Reserve (Player 10)',
-    reserveSub: '10th Summoner · Backup & Support',
-    reserveAllCovered: 'All paths covered. Reserve ready for backup or islands.',
+    reservePlayer: 'Backup (Player 10)',
+    reserveSub: '10th Summoner · Support & Contingencies',
+    reserveAllCovered: 'All paths covered. Backup ready for support or islands.',
     reserveCovering: 'Covering pending team fights',
     viewCerebroCounters: '💡 View CereBro suggestions',
     hideCerebroCounters: '▴ Hide suggestions',
@@ -402,7 +406,11 @@ const LANG = {
     discordSplitInfo: 'Auto-split for Discord (max 2,000 chars per message):',
     discordPart: 'Part',
     discordViewAll: 'View all',
-    copyAllBtn: '📋 Copy all'
+    copyAllBtn: '📋 Copy all',
+    islandBossAssignedHeader: 'Assigned Islands / Bosses',
+    islandTag: 'Island',
+    bossTag: 'Boss',
+    uncoveredIslandsHeading: 'Counters for uncovered Islands / Bosses'
   }
 };
 
@@ -1537,10 +1545,15 @@ function assignFightToNode(node, champName) {
   }
 
   if (rId) {
-    const nodes = rId === 'reserve' ? getUncoveredPathNodes() : getPlayerNodes(rId);
-    const vars = generateVariations(nodes);
     const sc = getSlotCount();
-    const curTeam = [...getActiveTeam(rId, vars)];
+    let curTeam;
+    if (rId === 'reserve') {
+      curTeam = [...(customState.customTeams['reserve'] || [])];
+    } else {
+      const nodes = getPlayerNodes(rId);
+      const vars = generateVariations(nodes);
+      curTeam = [...getActiveTeam(rId, vars)];
+    }
     while (curTeam.length < sc) curTeam.push(null);
 
     const isAlreadyInTeam = curTeam.some(att => att && att.toLowerCase() === champName.toLowerCase());
@@ -1593,11 +1606,11 @@ function openSlotPickerModal(routeId, slotIndex) {
   });
 
   const recList = document.querySelector('#recommendedCountersList');
-  if (!cAgg.size) {
-    recList.innerHTML = `<p class="stat-detail" style="padding:14px 0;">${t('noResults')} — usa "Todos" para elegir manualmente.</p>`;
-  } else {
+  let recHtml = '';
+
+  if (cAgg.size) {
     const sorted = Array.from(cAgg.values()).sort((a, b) => b.nodes.size - a.nodes.size || b.fights - a.fights);
-    recList.innerHTML = sorted.map(c => {
+    recHtml += sorted.map(c => {
       const pfHtml = c.prefights?.length ? `<div class="prefight-indicator">🔄 ${t('prefightLabel')} ${c.prefights.map(p=>p.name).join(', ')}</div>` : '';
       const firstNode = Array.from(c.nodes)[0];
       const targetFight = fights.find(f => f.node === firstNode);
@@ -1617,7 +1630,57 @@ function openSlotPickerModal(routeId, slotIndex) {
           </div>
         </div>`;
     }).join('');
+  }
 
+  // Also suggest counters for uncovered Mini-Boss Islands (37..45) & Bosses (46..50)
+  if (currentMap === 'STANDARD') {
+    const { islandAssignments, bossAssignments } = computeBossAssignments();
+    const islandBossAgg = new Map();
+    const specialNodes = [37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50];
+    specialNodes.forEach(sn => {
+      const f = getFightData(sn);
+      if (!f.defender) return;
+      const isIsland = sn <= 45;
+      const alreadyCovered = isIsland ? islandAssignments.has(sn) : bossAssignments.has(sn);
+      if (alreadyCovered) return;
+      (f.counters || []).forEach(c => {
+        if (!islandBossAgg.has(c.name)) {
+          islandBossAgg.set(c.name, { name: c.name, nodes: new Set(), fights: 0, champ: findChampion(c.name), sampleNode: sn, sampleDef: f.defender });
+        }
+        const it = islandBossAgg.get(c.name);
+        it.nodes.add(sn);
+        it.fights += c.fights || 1;
+      });
+    });
+
+    if (islandBossAgg.size) {
+      const sortedIB = Array.from(islandBossAgg.values()).sort((a, b) => b.nodes.size - a.nodes.size || b.fights - a.fights).slice(0, 12);
+      recHtml += `
+        <div style="margin-top:${recHtml ? '12px' : '0'};margin-bottom:6px;">
+          <span class="stat-detail" style="font-weight:700;color:#fbbf24;text-transform:uppercase;">⚡ ${t('uncoveredIslandsHeading')}</span>
+        </div>` + sortedIB.map(c => {
+        const cUrl = getCerebroUrl(c.sampleNode, c.sampleDef, c.name);
+        return `
+          <div class="counter-option-card" data-champ="${c.name}">
+            <div class="counter-opt-left">
+              <img class="counter-opt-avatar" src="${c.champ?.image || ''}" alt=""/>
+              <div class="counter-opt-meta">
+                <strong>${c.name}</strong>
+                <span>⚡ ${t('coversNodes')} ${Array.from(c.nodes).map(n => 'N' + n).join(', ')}</span>
+              </div>
+            </div>
+            <div class="counter-opt-actions">
+              <a class="counter-cerebro-btn" href="${cUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="${t('viewInCerebro')}">🎥 ${c.fights} ↗</a>
+            </div>
+          </div>`;
+      }).join('');
+    }
+  }
+
+  if (!recHtml) {
+    recList.innerHTML = `<p class="stat-detail" style="padding:14px 0;">${t('noResults')}</p>`;
+  } else {
+    recList.innerHTML = recHtml;
     recList.querySelectorAll('.counter-option-card').forEach(card => {
       card.onclick = () => selectChampionForSlot(card.dataset.champ);
     });
@@ -1657,10 +1720,15 @@ function renderAllChampionsInSlotModal(cls, q) {
 
 function selectChampionForSlot(champName) {
   const rId = modalActiveRoute, sIdx = modalActiveSlot;
-  const nodes = rId === 'reserve' ? getUncoveredPathNodes() : getPlayerNodes(rId);
-  const vars = generateVariations(nodes);
-  const cur = [...getActiveTeam(rId, vars)];
   const sc = getSlotCount();
+  let cur;
+  if (rId === 'reserve') {
+    cur = [...(customState.customTeams['reserve'] || [])];
+  } else {
+    const nodes = getPlayerNodes(rId);
+    const vars = generateVariations(nodes);
+    cur = [...getActiveTeam(rId, vars)];
+  }
   while (cur.length < sc) cur.push(null);
   cur[sIdx] = champName;
   customState.customTeams[rId] = cur;
@@ -1816,8 +1884,59 @@ function renderFightRowHtml(f, rId) {
     </div>`;
 }
 
+function getPlayerSpecialFights(rId, bossMaps) {
+  if (!bossMaps) return [];
+  const res = [];
+  const key = String(rId);
+  bossMaps.islandAssignments?.forEach((a, node) => {
+    if (String(a.routeId) === key) {
+      const f = getFightData(node);
+      if (f.defender) res.push({ node, type: 'island', defender: f.defender, defenderChamp: f.champ, attacker: a.attacker, attackerChamp: a.champ, fights: a.fights, manual: a.manual });
+    }
+  });
+  bossMaps.bossAssignments?.forEach((a, node) => {
+    if (String(a.routeId) === key) {
+      const f = getFightData(node);
+      if (f.defender) res.push({ node, type: 'boss', defender: f.defender, defenderChamp: f.champ, attacker: a.attacker, attackerChamp: a.champ, fights: a.fights, manual: a.manual });
+    }
+  });
+  res.sort((a, b) => a.node - b.node);
+  return res;
+}
+
+function renderPlayerSpecialFightsHtml(specialFights) {
+  if (!specialFights.length) return '';
+  const rows = specialFights.map(sf => {
+    const badge = sf.type === 'island' ? `⚡ ${t('islandTag')}` : `💀 ${t('bossTag')}`;
+    const cUrl = getCerebroUrl(sf.node, sf.defender, sf.attacker);
+    return `
+      <div class="fight-row special-assigned-row" onclick="openBossAssignModal(${sf.node})" style="cursor:pointer;" title="${t('clickToReassignBoss')}">
+        <div class="fight-defender-side">
+          <span class="fight-node-badge" style="background:rgba(245,158,11,0.2);color:#fbbf24;border-color:rgba(245,158,11,0.4);">N${sf.node}</span>
+          <img class="fight-mini-avatar" src="${sf.defenderChamp?.image || ''}" alt=""/>
+          <span class="fight-champ-name">${sf.defender}</span>
+          <span class="stat-detail" style="margin-left:4px;font-size:10px;color:#fbbf24;">${badge}</span>
+        </div>
+        <span class="fight-vs">➔</span>
+        <div class="fight-attacker-side">
+          <img class="fight-mini-avatar" src="${sf.attackerChamp?.image || ''}" alt=""/>
+          <span class="fight-champ-name">${sf.attacker}</span>
+          ${sf.manual ? `<span class="manual-badge">✎</span>` : ''}
+          <a class="cerebro-link-pill" href="${cUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="${t('viewInCerebro')}">🎥 ↗</a>
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="section-divider" style="margin-top:8px;color:#fbbf24;">
+      <span class="section-badge" style="background:rgba(245,158,11,0.18);border-color:rgba(245,158,11,0.4);color:#fbbf24;">⚡</span>
+      <span>${t('islandBossAssignedHeader')} (${specialFights.length})</span>
+    </div>
+    ${rows}`;
+}
+
 // ─── WAR PLAN RENDER ───
-function renderRouteCardInPlan(routeObj) {
+function renderRouteCardInPlan(routeObj, bossMaps = null) {
   const rId = routeObj.id;
   const nodes = getPlayerNodes(rId);
   const secs = getPlayerSections(rId);
@@ -1830,6 +1949,7 @@ function renderRouteCardInPlan(routeObj) {
   const baseSlots = Array.from({ length: sc }, (_, i) => activeTeam[i] || null);
   const assigned = assignFights(nodes, baseSlots);
   const { filled: slots, prefightFor, missing: missingPrefights } = fillPrefightSlots(baseSlots, assigned);
+  const specialFights = getPlayerSpecialFights(rId, bossMaps);
   const coveredCount = assigned.filter(a => a.covered).length;
   const totalDefs = nodes.map(getFightData).filter(f => f.defender).length;
   const isLoadingRoute = nodes.some(n => Boolean(data[n]?.defender) && loadingNodes.has(n));
@@ -1858,7 +1978,9 @@ function renderRouteCardInPlan(routeObj) {
         </div>`;
     }
     const ch = findChampion(att), cls = (ch?.class || 'COSMIC').toLowerCase();
-    const fc = assigned.filter(a => a.attacker === att && a.covered).length;
+    const pathFc = assigned.filter(a => a.attacker === att && a.covered).length;
+    const specialFc = specialFights.filter(sf => sf.attacker && sf.attacker.toLowerCase() === att.toLowerCase()).length;
+    const fc = pathFc + specialFc;
     const pfNodes = prefightFor[si];
     const isAutoPrefight = pfNodes && !baseSlots[si];
     const pfBadge = pfNodes
@@ -1976,13 +2098,13 @@ function renderRouteCardInPlan(routeObj) {
           <span>${t('assignedFights')} (${nodes.length} ${t('nodeLabel')}${nodes.length > 1 ? 's' : ''})</span>
           <span>${t('defVsAtt')}</span>
         </div>
-        <div class="fights-list">${fightsHtml}</div>
+        <div class="fights-list">${fightsHtml}${!filterUncoveredOnly ? renderPlayerSpecialFightsHtml(specialFights) : ''}</div>
       </div>
     </article>`;
 }
 
-// ─── 10TH PLAYER (RESERVE) RENDER ───
-function renderReserveCardInPlan() {
+// ─── 10TH PLAYER (BACKUP / RESERVE) RENDER ───
+function renderReserveCardInPlan(bossMaps = null) {
   const rId = 'reserve';
   const playerName = getPlayerName(rId);
   const sc = 3;
@@ -1991,6 +2113,7 @@ function renderReserveCardInPlan() {
 
   const uncoveredNodes = getUncoveredPathNodes();
   const assignedFightsList = uncoveredNodes.length > 0 ? assignFights(uncoveredNodes, baseSlots) : [];
+  const specialFights = getPlayerSpecialFights(rId, bossMaps);
   const cn = CLASS_NAMES();
 
   const slotsHtml = baseSlots.map((att, si) => {
@@ -2003,7 +2126,9 @@ function renderReserveCardInPlan() {
         </div>`;
     }
     const ch = findChampion(att), cls = (ch?.class || 'COSMIC').toLowerCase();
-    const fc = assignedFightsList.filter(a => a.attacker === att && a.covered).length;
+    const pathFc = assignedFightsList.filter(a => a.attacker === att && a.covered).length;
+    const specialFc = specialFights.filter(sf => sf.attacker && sf.attacker.toLowerCase() === att.toLowerCase()).length;
+    const fc = pathFc + specialFc;
     const fightsBadge = fc ? `<span class="slot-fights-badge">${fc} ${fc === 1 ? t('fightsResolved') : t('fightsResolvedPl')}</span>` : '';
     return `
       <div class="mcoc-slot" data-route="${rId}" data-slot="${si}" title="${t('modifyAttacker')}">
@@ -2027,6 +2152,7 @@ function renderReserveCardInPlan() {
     bannerHtml = `<div class="reserve-banner info">🛡️ ${t('reserveCovering')} (${uncoveredNodes.length} ${uncoveredNodes.length === 1 ? t('nodeLabel') : t('nodeLabel') + 's'})</div>`;
     fightsHtml = assignedFightsList.map(f => renderFightRowHtml(f, rId)).join('');
   }
+  const specialHtml = renderPlayerSpecialFightsHtml(specialFights);
 
   return `
     <article class="assignment reserve-assignment" data-route="${rId}">
@@ -2055,12 +2181,12 @@ function renderReserveCardInPlan() {
           <span>${t('defVsAtt')}</span>
         </div>
         ${bannerHtml}
-        ${fightsHtml ? `<div class="fights-list">${fightsHtml}</div>` : ''}
+        ${(fightsHtml || specialHtml) ? `<div class="fights-list">${fightsHtml}${specialHtml}</div>` : ''}
       </div>
     </article>`;
 }
 
-// ─── BOSS RECOMMENDATIONS (PRIORITY: UNCOVERED FIRST, HIDDEN IN BIG THING) ───
+// ─── BOSS RECOMMENDATIONS (MAXIMUM BIPARTITE MATCHING FOR ISLANDS + BOSSES) ───
 function computeBossAssignments() {
   const areas = getAreas();
   const islandAssignments = new Map();
@@ -2073,78 +2199,35 @@ function computeBossAssignments() {
     const pn = getPlayerName(r.id);
     const nodes = getPlayerNodes(r.id);
     const vs = generateVariations(nodes);
-    return { routeId: r.id, playerName: pn, team: getActiveTeam(r.id, vs).filter(Boolean) };
+    const hasCustom = Boolean(customState.customTeams[r.id]?.length);
+    return { routeId: r.id, key: String(r.id), playerName: pn, team: getActiveTeam(r.id, vs).filter(Boolean), isCustom: hasCustom };
   });
   if (currentMap === 'STANDARD') {
     const rTeam = (customState.customTeams['reserve'] || []).filter(Boolean);
     if (rTeam.length) {
       pTeams.push({
         routeId: 'reserve',
+        key: 'reserve',
         playerName: getPlayerName('reserve'),
-        team: rTeam
+        team: rTeam,
+        isCustom: true
       });
     }
   }
 
-  // Mini-boss islands (37..45): limit to at most 1 fight per summoner
-  const islandAssignedSummoners = new Set();
   const allIslandNodes = [37, 38, 39, 40, 41, 42, 43, 44, 45];
-  const islandCandidates = new Map();
-
-  allIslandNodes.forEach(node => {
-    const f = getFightData(node);
-    const cands = [];
-    if (f.defender) {
-      pTeams.forEach(p => {
-        p.team.forEach(att => {
-          const cm = f.counters.find(c => c.name.toLowerCase() === att.toLowerCase());
-          if (cm) cands.push({ player: p.playerName, routeId: p.routeId, attacker: att, champ: findChampion(att), fights: cm.fights || 1, score: 1000 + (cm.fights || 1) * 10 });
-        });
-      });
-      cands.sort((a, b) => b.score - a.score);
-    }
-    islandCandidates.set(node, cands);
-  });
-
-  const sortedIslandNodes = [...allIslandNodes]
-    .filter(n => (islandCandidates.get(n) || []).length > 0)
-    .sort((a, b) => (islandCandidates.get(a).length - islandCandidates.get(b).length));
-
-  sortedIslandNodes.forEach(node => {
-    const cands = islandCandidates.get(node) || [];
-    const pick = cands.find(c => !islandAssignedSummoners.has(c.player));
-    if (pick) {
-      islandAssignedSummoners.add(pick.player);
-      islandAssignments.set(node, pick);
-    }
-  });
-
-  // Boss Island (46..50)
   const allBossNodes = [46, 47, 48, 49, 50];
-  allBossNodes.forEach(node => {
-    const f = getFightData(node);
-    const cands = [];
-    if (f.defender) {
-      pTeams.forEach(p => {
-        p.team.forEach(att => {
-          const cm = f.counters.find(c => c.name.toLowerCase() === att.toLowerCase());
-          if (cm) cands.push({ player: p.playerName, routeId: p.routeId, attacker: att, champ: findChampion(att), fights: cm.fights || 1, score: 1000 + (cm.fights || 1) * 10 });
-        });
-      });
-      cands.sort((a, b) => b.score - a.score);
-      if (cands.length) {
-        bossAssignments.set(node, cands[0]);
-      }
-    }
-  });
+  const manualDisabled = new Set();
+  const lockedIslandPlayerKeys = new Set();
 
-  // Apply manual user overrides from customState.islandOverrides
+  // 1. Apply explicit manual overrides FIRST so auto-matching respects them
   if (customState.islandOverrides) {
     Object.entries(customState.islandOverrides).forEach(([nodeStr, override]) => {
       const nodeNum = parseInt(nodeStr, 10);
       const isMiniNode = allIslandNodes.includes(nodeNum);
       const targetMap = isMiniNode ? islandAssignments : bossAssignments;
       if (override === '__none__') {
+        manualDisabled.add(nodeNum);
         targetMap.delete(nodeNum);
       } else if (override && override.player && override.attacker) {
         const f = getFightData(nodeNum);
@@ -2157,18 +2240,115 @@ function computeBossAssignments() {
           fights: cm?.fights || 0,
           manual: true
         });
+        if (isMiniNode && override.routeId !== undefined && override.routeId !== null) {
+          lockedIslandPlayerKeys.add(String(override.routeId));
+        }
       }
     });
   }
 
+  // 2. Mini-boss islands (37..45): Maximum Bipartite Matching (max 1 island fight per summoner)
+  const islandCandidates = new Map();
+  allIslandNodes.forEach(node => {
+    if (islandAssignments.has(node) || manualDisabled.has(node)) return;
+    const f = getFightData(node);
+    if (!f.defender) return;
+    const bestPerPlayer = new Map();
+    pTeams.forEach(p => {
+      if (lockedIslandPlayerKeys.has(p.key)) return;
+      p.team.forEach(att => {
+        const cm = f.counters.find(c => c.name.toLowerCase() === att.toLowerCase());
+        if (cm) {
+          const score = 1000 + (cm.fights || 1) * 10 + (p.isCustom ? 5 : 0);
+          const prev = bestPerPlayer.get(p.key);
+          if (!prev || score > prev.score) {
+            bestPerPlayer.set(p.key, {
+              player: p.playerName,
+              routeId: p.routeId,
+              playerKey: p.key,
+              attacker: att,
+              champ: findChampion(att),
+              fights: cm.fights || 1,
+              score
+            });
+          }
+        }
+      });
+    });
+    const cands = Array.from(bestPerPlayer.values()).sort((a, b) => b.score - a.score);
+    if (cands.length) islandCandidates.set(node, cands);
+  });
+
+  // Order nodes by fewest available players first, then highest best score
+  const openIslandNodes = Array.from(islandCandidates.keys()).sort((a, b) => {
+    const ca = islandCandidates.get(a);
+    const cb = islandCandidates.get(b);
+    return (ca.length - cb.length) || (cb[0].score - ca[0].score);
+  });
+
+  // Kuhn's augmenting path algorithm guarantees maximum number of covered island nodes
+  const matchPlayerToNode = new Map(); // playerKey -> node
+  const matchNodeToCand = new Map();   // node -> cand
+
+  function tryAugment(node, visitedPlayers) {
+    const cands = islandCandidates.get(node) || [];
+    for (const cand of cands) {
+      if (visitedPlayers.has(cand.playerKey)) continue;
+      visitedPlayers.add(cand.playerKey);
+      const prevNode = matchPlayerToNode.get(cand.playerKey);
+      if (prevNode === undefined || tryAugment(prevNode, visitedPlayers)) {
+        matchPlayerToNode.set(cand.playerKey, node);
+        matchNodeToCand.set(node, cand);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  openIslandNodes.forEach(node => {
+    tryAugment(node, new Set());
+  });
+
+  matchNodeToCand.forEach((cand, node) => {
+    islandAssignments.set(node, cand);
+  });
+
+  // 3. Boss Island (46..50)
+  allBossNodes.forEach(node => {
+    if (bossAssignments.has(node) || manualDisabled.has(node)) return;
+    const f = getFightData(node);
+    const cands = [];
+    if (f.defender) {
+      pTeams.forEach(p => {
+        p.team.forEach(att => {
+          const cm = f.counters.find(c => c.name.toLowerCase() === att.toLowerCase());
+          if (cm) {
+            cands.push({
+              player: p.playerName,
+              routeId: p.routeId,
+              attacker: att,
+              champ: findChampion(att),
+              fights: cm.fights || 1,
+              score: 1000 + (cm.fights || 1) * 10 + (p.isCustom ? 5 : 0)
+            });
+          }
+        });
+      });
+      cands.sort((a, b) => b.score - a.score);
+      if (cands.length) {
+        bossAssignments.set(node, cands[0]);
+      }
+    }
+  });
+
   return { islandAssignments, bossAssignments };
 }
 
-function evaluateBossRecommendations(filterUncovered = false) {
+function evaluateBossRecommendations(filterUncovered = false, precomputed = null) {
   const areas = getAreas();
   if (!areas.islands.length && !areas.boss.length) return { islandsHtml: '', bossHtml: '' };
 
-  const { islandAssignments, bossAssignments } = computeBossAssignments();
+  const { islandAssignments, bossAssignments } = precomputed || computeBossAssignments();
 
   function renderG(group, ecls) {
     const isMini = group.type === 'mini';
@@ -2427,15 +2607,16 @@ function plan() {
     });
   }
 
-  let rh = routesList.map(renderRouteCardInPlan).join('');
+  const bossMaps = computeBossAssignments();
+  let rh = routesList.map(r => renderRouteCardInPlan(r, bossMaps)).join('');
   if (currentMap === 'STANDARD') {
     const uncNodes = getUncoveredPathNodes();
     if (!filterUncoveredOnly || uncNodes.length > 0) {
-      rh += renderReserveCardInPlan();
+      rh += renderReserveCardInPlan(bossMaps);
     }
   }
 
-  const { islandsHtml, bossHtml } = evaluateBossRecommendations(filterUncoveredOnly);
+  const { islandsHtml, bossHtml } = evaluateBossRecommendations(filterUncoveredOnly, bossMaps);
 
   if (filterUncoveredOnly && !routesList.length && !islandsHtml && !bossHtml) {
     rh = `<div class="stat-detail" style="grid-column:1/-1; padding:40px 20px; text-align:center; font-size:14px; color:var(--accent); font-weight:700;">🎉 ${t('allFightsCovered')}</div>`;
@@ -2576,6 +2757,29 @@ function updateDashboard() {
         }
       });
     }
+
+    // Also include Mini-Bosses (37..45) & Bosses (46..50) in coverage and risk stats
+    const { islandAssignments, bossAssignments } = computeBossAssignments();
+    [37, 38, 39, 40, 41, 42, 43, 44, 45].forEach(n => {
+      if (!data[n]?.defender) return;
+      const a = islandAssignments.get(n);
+      if (a && a.attacker) {
+        covered++;
+        usage[a.attacker] = (usage[a.attacker] || 0) + 1;
+      } else {
+        risk.push(n);
+      }
+    });
+    [46, 47, 48, 49, 50].forEach(n => {
+      if (!data[n]?.defender) return;
+      const a = bossAssignments.get(n);
+      if (a && a.attacker) {
+        covered++;
+        usage[a.attacker] = (usage[a.attacker] || 0) + 1;
+      } else {
+        risk.push(n);
+      }
+    });
   }
 
   const pct = filled.length ? Math.round(covered / filled.length * 100) : 0;
@@ -3307,22 +3511,13 @@ document.querySelector('#authLoginForm')?.addEventListener('submit', async e => 
   const errBanner = document.querySelector('#authErrorMsg');
   const submitBtn = document.querySelector('#authSubmitBtn');
 
-  const code = codeInput?.value.trim().toLowerCase() || '';
+  const code = codeInput?.value.trim() || '';
 
   if (errBanner) errBanner.style.display = 'none';
 
   if (!code) {
     if (errBanner) {
       errBanner.textContent = currentLang === 'es' ? '⚠️ Ingresa el código de acceso.' : '⚠️ Please enter the access code.';
-      errBanner.style.display = 'block';
-    }
-    codeInput?.focus();
-    return;
-  }
-
-  if (code !== 'theboys') {
-    if (errBanner) {
-      errBanner.textContent = currentLang === 'es' ? '❌ Código incorrecto. Verifica el código de acceso.' : '❌ Invalid code. Check the access code.';
       errBanner.style.display = 'block';
     }
     codeInput?.focus();
@@ -3340,7 +3535,7 @@ document.querySelector('#authLoginForm')?.addEventListener('submit', async e => 
     });
     const result = await res.json();
 
-    if (result.success && result.token) {
+    if (res.ok && result.success && result.token) {
       localStorage.setItem('war_auth_token', result.token);
       const gate = document.querySelector('#authGateScreen');
       const lockBtn = document.querySelector('#lockSessionBtn');
@@ -3348,16 +3543,20 @@ document.querySelector('#authLoginForm')?.addEventListener('submit', async e => 
       if (lockBtn) lockBtn.style.display = 'inline-flex';
     } else {
       if (errBanner) {
-        errBanner.textContent = `❌ ${result.error || (currentLang === 'es' ? 'Código incorrecto.' : 'Invalid code.')}`;
+        errBanner.textContent = currentLang === 'es'
+          ? '❌ Código incorrecto. Verifica el código de acceso.'
+          : '❌ Invalid code. Check the access code.';
         errBanner.style.display = 'block';
       }
+      codeInput?.focus();
     }
   } catch (err) {
-    localStorage.setItem('war_auth_token', 'local_' + Date.now());
-    const gate = document.querySelector('#authGateScreen');
-    const lockBtn = document.querySelector('#lockSessionBtn');
-    if (gate) gate.style.display = 'none';
-    if (lockBtn) lockBtn.style.display = 'inline-flex';
+    if (errBanner) {
+      errBanner.textContent = currentLang === 'es'
+        ? '⚠️ No se pudo conectar con el servidor de acceso.'
+        : '⚠️ Could not reach the authentication server.';
+      errBanner.style.display = 'block';
+    }
   } finally {
     submitBtn.disabled = false;
     submitBtn.innerHTML = `<span>${t('authEnterBtn')}</span>`;
