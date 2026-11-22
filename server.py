@@ -134,8 +134,7 @@ class Handler(SimpleHTTPRequestHandler):
 
         try:
             if p.path == '/api/auth/status':
-                token = self.get_auth_token(p)
-                return self.api({'authenticated': core.verify_auth_token(token)})
+                return self.api({'authenticated': True})
             if p.path == '/api/info':
                 lip = get_local_ip()
                 cf_url = get_cloudflare_url()

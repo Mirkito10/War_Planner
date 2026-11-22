@@ -3474,118 +3474,10 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
-// ─── AUTHENTICATION (CODE ONLY: THEBOYS · NO EMAIL · CLEAN MAIN SCREEN) ───
+// ─── OPEN ACCESS (NO AUTH GATE) ───
 async function checkAuthStatus() {
-  const token = localStorage.getItem('war_auth_token');
-  const gate = document.querySelector('#authGateScreen');
-  const lockBtn = document.querySelector('#lockSessionBtn');
-
-  try {
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch('/api/auth/status', { headers });
-    const data = await res.json();
-
-    if (data.authenticated) {
-      if (gate) gate.style.display = 'none';
-      if (lockBtn) lockBtn.style.display = 'inline-flex';
-      return true;
-    }
-  } catch (err) {
-    if (token) {
-      if (gate) gate.style.display = 'none';
-      if (lockBtn) lockBtn.style.display = 'inline-flex';
-      return true;
-    }
-  }
-
-  // No autenticado: mostrar pantalla de acceso
-  if (gate) gate.style.display = 'flex';
-  if (lockBtn) lockBtn.style.display = 'none';
-  return false;
+  return true;
 }
-
-document.querySelector('#authLoginForm')?.addEventListener('submit', async e => {
-  e.preventDefault();
-  const codeInput = document.querySelector('#authCodeInput');
-  const errBanner = document.querySelector('#authErrorMsg');
-  const submitBtn = document.querySelector('#authSubmitBtn');
-
-  const code = codeInput?.value.trim() || '';
-
-  if (errBanner) errBanner.style.display = 'none';
-
-  if (!code) {
-    if (errBanner) {
-      errBanner.textContent = currentLang === 'es' ? '⚠️ Ingresa el código de acceso.' : '⚠️ Please enter the access code.';
-      errBanner.style.display = 'block';
-    }
-    codeInput?.focus();
-    return;
-  }
-
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = '<span>⏳...</span>';
-
-  try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
-    });
-    const result = await res.json();
-
-    if (res.ok && result.success && result.token) {
-      localStorage.setItem('war_auth_token', result.token);
-      const gate = document.querySelector('#authGateScreen');
-      const lockBtn = document.querySelector('#lockSessionBtn');
-      if (gate) gate.style.display = 'none';
-      if (lockBtn) lockBtn.style.display = 'inline-flex';
-    } else {
-      if (errBanner) {
-        errBanner.textContent = currentLang === 'es'
-          ? '❌ Código incorrecto. Verifica el código de acceso.'
-          : '❌ Invalid code. Check the access code.';
-        errBanner.style.display = 'block';
-      }
-      codeInput?.focus();
-    }
-  } catch (err) {
-    if (errBanner) {
-      errBanner.textContent = currentLang === 'es'
-        ? '⚠️ No se pudo conectar con el servidor de acceso.'
-        : '⚠️ Could not reach the authentication server.';
-      errBanner.style.display = 'block';
-    }
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = `<span>${t('authEnterBtn')}</span>`;
-  }
-});
-
-document.querySelector('#toggleCodeVisibilityBtn')?.addEventListener('click', () => {
-  const input = document.querySelector('#authCodeInput');
-  if (input) {
-    input.type = input.type === 'password' ? 'text' : 'password';
-  }
-});
-
-document.querySelector('#lockSessionBtn')?.addEventListener('click', async () => {
-  const token = localStorage.getItem('war_auth_token');
-  try {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-  } catch {}
-  localStorage.removeItem('war_auth_token');
-  const gate = document.querySelector('#authGateScreen');
-  const lockBtn = document.querySelector('#lockSessionBtn');
-  if (gate) gate.style.display = 'flex';
-  if (lockBtn) lockBtn.style.display = 'none';
-  const inp = document.querySelector('#authCodeInput');
-  if (inp) { inp.value = ''; inp.focus(); }
-});
 
 // ─── NETWORK SHARING (LAN & CLOUDFLARE) ───
 let currentLanUrl = '', currentCfUrl = '';
@@ -3668,7 +3560,6 @@ document.querySelector('#copyCfUrlBtn')?.addEventListener('click', async () => {
 // ─── INITIALIZATION ───
 async function init() {
   applyLang();
-  await checkAuthStatus();
 
   if (window.location.search.includes('map=BIG_THING')) {
     switchMap('BIG_THING');

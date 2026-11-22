@@ -12,8 +12,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="War Planner" />
     <link rel="apple-touch-icon" href="icon-192.png" />
-    <link rel="stylesheet" href="styles.css?v=20" />
-    <link rel="stylesheet" href="overrides.css?v=20" />
+    <link rel="stylesheet" href="styles.css?v=21" />
+    <link rel="stylesheet" href="overrides.css?v=21" />
     <script>
       // Force update of service workers to avoid stale cache locks
       if ('serviceWorker' in navigator) {
@@ -26,36 +26,6 @@
     </script>
   </head>
   <body>
-    <!-- ACCESS GATE (CODE ONLY) -->
-    <div class="auth-gate-wrapper" id="authGateScreen" style="display:flex;">
-      <div class="auth-gate-card">
-        <div class="auth-gate-emblem">⚔️</div>
-        <p class="auth-eyebrow" data-i18n="authEyebrow">MCOC TACTICAL SUITE</p>
-        <h2 class="auth-title" data-i18n="authTitle">Access Code Required</h2>
-        <p class="auth-subtitle" data-i18n="authSubtitle">Enter the alliance access code to unlock the war planner.</p>
-
-        <form id="authLoginForm" class="auth-form" onsubmit="return false;">
-          <div class="auth-field-group">
-            <label for="authCodeInput" data-i18n="authCodeLabel">🔑 Access Code</label>
-            <div class="auth-code-wrap">
-              <input type="password" id="authCodeInput" placeholder="Enter access code..." required autocomplete="current-password" autofocus />
-              <button type="button" class="toggle-password-btn" id="toggleCodeVisibilityBtn" title="Show/hide code">👁️</button>
-            </div>
-          </div>
-
-          <div class="auth-error-banner" id="authErrorMsg" style="display:none;"></div>
-
-          <button type="submit" class="primary auth-submit-btn" id="authSubmitBtn">
-            <span data-i18n="authEnterBtn">🔓 Enter War Planner</span>
-          </button>
-        </form>
-
-        <div class="auth-gate-footer">
-          <span data-i18n="authFooter">⚔️ War Planner · Protected by alliance access code</span>
-        </div>
-      </div>
-    </div>
-
     <header class="hero">
       <div class="hero-brand">
         <p class="eyebrow" data-i18n="heroEyebrow">MCOC · GUERRA DE ALIANZAS · SUITE TÁCTICA</p>
@@ -72,7 +42,6 @@
             <button class="map-btn" id="mapBigThingBtn" data-i18n="bigThing">Big Thing (10 nodos)</button>
           </div>
           <div class="hero-user-group" style="display:flex; align-items:center; gap:8px;">
-            <button class="lang-btn" id="lockSessionBtn" title="Bloquear / Salir" style="display:none;" data-i18n-title="lockSession">🔒</button>
             <button class="lang-btn" id="langToggleBtn" title="Switch language / Cambiar idioma">🇬🇧 EN</button>
           </div>
         </div>
@@ -439,10 +408,6 @@
             <div id="lanQrLoading" data-i18n="generatingQr" style="color:#000; font-size:12px;">Generando QR...</div>
           </div>
 
-          <!-- Credenciales: Solo código de acceso -->
-          <div style="background:rgba(245, 158, 11, 0.12); border:1px solid rgba(245, 158, 11, 0.35); border-radius:8px; padding:10px; margin-top:12px; font-size:12px; text-align:left;">
-            <strong data-i18n="authReqTitle">🔑 Access code required</strong>
-          </div>
         </div>
         <div class="modal-footer">
           <span class="copy-success-msg" id="lanCopySuccessMsg" style="display:none;" data-i18n="copied">¡Copiado! ✓</span>
@@ -451,6 +416,6 @@
       </div>
     </div>
 
-    <script src="app.js?v=20"></script>
+    <script src="app.js?v=21"></script>
   </body>
 </html>
