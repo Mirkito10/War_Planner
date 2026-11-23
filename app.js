@@ -210,7 +210,21 @@ const LANG = {
     islandBossAssignedHeader: 'Islas / Jefes asignados',
     islandTag: 'Isla',
     bossTag: 'Jefe',
-    uncoveredIslandsHeading: 'Counters para Islas / Jefes sin cubrir'
+    uncoveredIslandsHeading: 'Counters para Islas / Jefes sin cubrir',
+    assignNodeToReserve: '+ Asignar nodo a Reserva...',
+    reservePathNodesOpt: 'Nodos de Camino (N1–N36)',
+    reserveBossNodesOpt: 'Islas y Jefes (N37–N50)',
+    reserveManualNodesTitle: 'Nodos asignados manualmente',
+    removeFromReserve: 'Quitar nodo de Reserva',
+    delegatedToReserve: 'Asignado a Reserva',
+    returnFromReserve: 'Devolver a este camino',
+    alreadyAssignedIslandBadge: '⚠️ Ya en isla',
+    alreadyAssignedFlankBadge: '⚠️ En lado contrario',
+    confirmReplaceIsland: 'ya está asignado a la isla',
+    islandLimitRule: 'En las islas de mini-jefes cada jugador solo puede tomar 1 pelea.',
+    confirmMovePrompt: '¿Quieres reemplazar esa asignación y moverlo al nodo',
+    confirmReplaceBossFlank: 'ya está asignado al lado contrario en la isla del Jefe',
+    bossFlankRule: 'En la isla final solo se puede ir por Izquierda (N46, N48) o por Derecha (N47, N49) y luego al Jefe (N50).'
   },
   en: {
     warPlanner: 'War Planner',
@@ -410,7 +424,21 @@ const LANG = {
     islandBossAssignedHeader: 'Assigned Islands / Bosses',
     islandTag: 'Island',
     bossTag: 'Boss',
-    uncoveredIslandsHeading: 'Counters for uncovered Islands / Bosses'
+    uncoveredIslandsHeading: 'Counters for uncovered Islands / Bosses',
+    assignNodeToReserve: '+ Assign node to Backup...',
+    reservePathNodesOpt: 'Path Nodes (N1–N36)',
+    reserveBossNodesOpt: 'Islands & Bosses (N37–N50)',
+    reserveManualNodesTitle: 'Manually assigned nodes',
+    removeFromReserve: 'Remove node from Backup',
+    delegatedToReserve: 'Assigned to Backup',
+    returnFromReserve: 'Return to this path',
+    alreadyAssignedIslandBadge: '⚠️ Already on island',
+    alreadyAssignedFlankBadge: '⚠️ On opposite flank',
+    confirmReplaceIsland: 'is already assigned to island',
+    islandLimitRule: 'Each summoner can only take 1 fight across Mini-Boss Islands.',
+    confirmMovePrompt: 'Do you want to replace that assignment and move them to node',
+    confirmReplaceBossFlank: 'is already assigned to the opposite Boss flank',
+    bossFlankRule: 'On the Final Boss island, a summoner can only take Left (N46, N48) or Right (N47, N49), then Final Boss (N50).'
   }
 };
 
@@ -561,7 +589,10 @@ function loadCustomState() {
     fightOverrides: cs.fightOverrides || {},
     assignmentMode: cs.assignmentMode || 'fixed',
     pathSections: cs.pathSections || {},
-    islandOverrides: cs.islandOverrides || {}
+    islandOverrides: cs.islandOverrides || {},
+    reserveNodes: Array.isArray(cs.reserveNodes)
+      ? Array.from(new Set(cs.reserveNodes.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && n >= 1 && n <= 36))).sort((a, b) => a - b)
+      : []
   };
 }
 
@@ -665,11 +696,27 @@ function getPlayerNodes(pId) {
   return [...s1Nodes, ...s2Nodes];
 }
 
+function getReserveManualNodes() {
+  if (currentMap !== 'STANDARD') return [];
+  return Array.isArray(customState.reserveNodes)
+    ? Array.from(new Set(customState.reserveNodes.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && n >= 1 && n <= 36))).sort((a, b) => a - b)
+    : [];
+}
+
+function getPlayerActiveNodes(pId) {
+  const nodes = getPlayerNodes(pId);
+  if (currentMap !== 'STANDARD') return nodes;
+  const resSet = new Set(getReserveManualNodes());
+  if (!resSet.size) return nodes;
+  return nodes.filter(n => !resSet.has(n));
+}
+
 function getUncoveredPathNodes() {
   if (currentMap !== 'STANDARD') return [];
+  const resSet = new Set(getReserveManualNodes());
   const coveredNodes = new Set();
   for (let p = 1; p <= 9; p++) {
-    const nodes = getPlayerNodes(p);
+    const nodes = getPlayerActiveNodes(p);
     const vs = generateVariations(nodes);
     const team = getActiveTeam(p, vs);
     const assigned = assignFights(nodes, team);
@@ -681,11 +728,45 @@ function getUncoveredPathNodes() {
   }
   const uncovered = [];
   for (let n = 1; n <= 36; n++) {
+    if (resSet.has(n)) continue;
     if (data[n]?.defender && !coveredNodes.has(n)) {
       uncovered.push(n);
     }
   }
   return uncovered;
+}
+
+function getReserveAllNodes() {
+  if (currentMap !== 'STANDARD') return [];
+  const combined = new Set([...getReserveManualNodes(), ...getUncoveredPathNodes()]);
+  return Array.from(combined).sort((a, b) => a - b);
+}
+
+function addNodeToReserve(node) {
+  const n = parseInt(node, 10);
+  if (isNaN(n)) return;
+  if (n >= 37 && n <= 50) {
+    openBossAssignModal(n);
+    return;
+  }
+  if (n < 1 || n > 36) return;
+  if (!Array.isArray(customState.reserveNodes)) customState.reserveNodes = [];
+  if (!customState.reserveNodes.includes(n)) {
+    customState.reserveNodes.push(n);
+    customState.reserveNodes.sort((a, b) => a - b);
+    saveState();
+    plan();
+    updateDashboard();
+  }
+}
+
+function removeNodeFromReserve(node) {
+  const n = parseInt(node, 10);
+  if (!Array.isArray(customState.reserveNodes)) return;
+  customState.reserveNodes = customState.reserveNodes.filter(x => x !== n);
+  saveState();
+  plan();
+  updateDashboard();
 }
 
 function optimizeFlexibleSections() {
@@ -1453,9 +1534,9 @@ function openFightAssignmentModal(node, routeId) {
 
   // 1. Recommended tab: team slots + CereBro counters
   const recList = document.querySelector('#recommendedCountersList');
-  const nodes = routeId === 'reserve' ? getUncoveredPathNodes() : getPlayerNodes(routeId);
-  const vars = generateVariations(nodes);
-  const currentTeam = getActiveTeam(routeId, vars).filter(Boolean);
+  const currentTeam = routeId === 'reserve'
+    ? (customState.customTeams['reserve'] || []).filter(Boolean)
+    : getActiveTeam(routeId, generateVariations(getPlayerActiveNodes(routeId))).filter(Boolean);
 
   let teamCardsHtml = '';
   if (currentTeam.length) {
@@ -1589,7 +1670,7 @@ function openSlotPickerModal(routeId, slotIndex) {
   document.querySelector('#slotModalSubtitle').textContent = `${typeof routeId === 'number' ? `${t('routeLabel')} ${routeId}` : (routeId === 'reserve' ? t('reservePlayer') : routeId)} (${pName}) · SLOT ${slotIndex + 1}`;
   document.querySelector('#slotModalTitle').textContent = t('modifyAttacker');
 
-  const nodes = routeId === 'reserve' ? getUncoveredPathNodes() : getPlayerNodes(routeId);
+  const nodes = routeId === 'reserve' ? getReserveAllNodes() : getPlayerActiveNodes(routeId);
   const fights = nodes.map(getFightData).filter(f => f.defender);
   const cAgg = new Map();
 
@@ -1810,11 +1891,35 @@ function fillPrefightSlots(slots, assigned) {
 }
 
 // ─── FIGHT ROW RENDERER ───
-function renderFightRowHtml(f, rId) {
+function renderFightRowHtml(f, rId, extraOpts = {}) {
+  const manualRemoveNodeBtn = extraOpts.isManualReserveNode
+    ? `<button class="reserve-remove-node-btn" onclick="event.stopPropagation(); removeNodeFromReserve(${f.node});" title="${t('removeFromReserve')}">−</button>`
+    : '';
+  const nodeLabelHtml = `<span class="fight-node-label" style="${extraOpts.isManualReserveNode ? 'display:inline-flex;align-items:center;gap:2px;color:#fbbf24;' : ''}">N${f.node}${manualRemoveNodeBtn}</span>`;
+
+  if (extraOpts.delegatedToReserve) {
+    const defSide = f.defender
+      ? `<img class="fight-avatar" src="${f.defenderChamp?.image || ''}" alt=""/>
+         <span class="fight-fighter-name" title="${f.defender}">${f.defender}</span>`
+      : `<span class="stat-detail">${t('assignDefender')}</span>`;
+    return `
+      <div class="fight-row delegated-reserve-row" data-node="${f.node}" style="opacity:0.78;">
+        <span class="fight-node-label" style="color:#fbbf24;">N${f.node}</span>
+        <div class="fight-fighter" onclick="openDefenderPickerModal(${f.node})" style="cursor:pointer;" title="${f.defender || ''}">
+          ${defSide}
+        </div>
+        <span class="fight-vs">🛡️</span>
+        <div class="fight-fighter delegated-reserve-badge">
+          <span class="fight-fighter-name" style="color:#fbbf24;">${t('delegatedToReserve')}</span>
+          <button class="remove-fight-btn" onclick="event.stopPropagation(); removeNodeFromReserve(${f.node});" title="${t('returnFromReserve')}" style="opacity:1;color:#fbbf24;">↩</button>
+        </div>
+      </div>`;
+  }
+
   if (!f.defender) {
     return `
-      <div class="fight-row" style="opacity:0.5;">
-        <span class="fight-node-label">N${f.node}</span>
+      <div class="fight-row" style="opacity:${extraOpts.isManualReserveNode ? '0.85' : '0.5'};">
+        ${nodeLabelHtml}
         <div class="fight-fighter" onclick="openDefenderPickerModal(${f.node})" style="cursor:pointer;">
           <span class="stat-detail">${t('assignDefender')}</span>
         </div>
@@ -1828,7 +1933,7 @@ function renderFightRowHtml(f, rId) {
   if (loadingNodes.has(f.node)) {
     return `
       <div class="fight-row loading-row" data-node="${f.node}">
-        <span class="fight-node-label">N${f.node}</span>
+        ${nodeLabelHtml}
         <div class="fight-fighter" onclick="openDefenderPickerModal(${f.node})" style="cursor:pointer;" title="${f.defender}">
           <img class="fight-avatar" src="${f.defenderChamp?.image || ''}" alt=""/>
           <span class="fight-fighter-name" title="${f.defender}">${f.defender}</span>
@@ -1873,7 +1978,7 @@ function renderFightRowHtml(f, rId) {
 
   return `
     <div class="fight-row ${f.covered ? '' : 'uncovered'}" data-node="${f.node}">
-      <span class="fight-node-label">N${f.node}</span>
+      ${nodeLabelHtml}
       <div class="fight-fighter" onclick="openDefenderPickerModal(${f.node})" style="cursor:pointer;" title="${f.defender}">
         <img class="fight-avatar" src="${f.defenderChamp?.image || ''}" alt=""/>
         <span class="fight-fighter-name" title="${f.defender}">${f.defender}</span>
@@ -1907,22 +2012,31 @@ function getPlayerSpecialFights(rId, bossMaps) {
 function renderPlayerSpecialFightsHtml(specialFights) {
   if (!specialFights.length) return '';
   const rows = specialFights.map(sf => {
-    const badge = sf.type === 'island' ? `⚡ ${t('islandTag')}` : `💀 ${t('bossTag')}`;
     const cUrl = getCerebroUrl(sf.node, sf.defender, sf.attacker);
     return `
-      <div class="fight-row special-assigned-row" onclick="openBossAssignModal(${sf.node})" style="cursor:pointer;" title="${t('clickToReassignBoss')}">
-        <div class="fight-defender-side">
-          <span class="fight-node-badge" style="background:rgba(245,158,11,0.2);color:#fbbf24;border-color:rgba(245,158,11,0.4);">N${sf.node}</span>
-          <img class="fight-mini-avatar" src="${sf.defenderChamp?.image || ''}" alt=""/>
-          <span class="fight-champ-name">${sf.defender}</span>
-          <span class="stat-detail" style="margin-left:4px;font-size:10px;color:#fbbf24;">${badge}</span>
+      <div class="fight-row special-assigned-row" data-node="${sf.node}" onclick="openBossAssignModal(${sf.node})" style="cursor:pointer;" title="${t('clickToReassignBoss')}">
+        <span class="fight-node-label" style="color:#fbbf24;">N${sf.node}</span>
+        <div class="fight-fighter" onclick="event.stopPropagation(); openDefenderPickerModal(${sf.node});" style="cursor:pointer;" title="${sf.defender}">
+          <img class="fight-avatar" src="${sf.defenderChamp?.image || ''}" alt=""/>
+          <span class="fight-fighter-name" title="${sf.defender}">${sf.defender}</span>
         </div>
-        <span class="fight-vs">➔</span>
-        <div class="fight-attacker-side">
-          <img class="fight-mini-avatar" src="${sf.attackerChamp?.image || ''}" alt=""/>
-          <span class="fight-champ-name">${sf.attacker}</span>
-          ${sf.manual ? `<span class="manual-badge">✎</span>` : ''}
-          <a class="cerebro-link-pill" href="${cUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="${t('viewInCerebro')}">🎥 ↗</a>
+        <span class="fight-vs">⚔️</span>
+        <div class="fight-fighter fight-attacker-side" title="${t('clickToReassignBoss')}">
+          <img class="fight-avatar" src="${sf.attackerChamp?.image || ''}" alt=""/>
+          <div class="fight-attacker-meta">
+            <span class="fight-fighter-name" title="${sf.attacker}">${sf.attacker}</span>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
+              ${sf.fights ? `
+                <a class="cerebro-link-pill" href="${cUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="${t('viewInCerebro')}">
+                  🎥 ${sf.fights} ${t('cebroBadge')} ↗
+                </a>` : `
+                <a class="cerebro-link-pill secondary" href="${cUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="${t('searchInCerebro')}">
+                  🔍 CereBro ↗
+                </a>`}
+              ${sf.manual ? `<span class="manual-badge" style="font-size:8.5px;padding:1px 5px;">✎</span>` : ''}
+            </div>
+          </div>
+          <button class="remove-fight-btn" onclick="event.stopPropagation(); unassignBossFight(${sf.node});" title="${t('unassignBoss')}">✕</button>
         </div>
       </div>`;
   }).join('');
@@ -1939,20 +2053,30 @@ function renderPlayerSpecialFightsHtml(specialFights) {
 function renderRouteCardInPlan(routeObj, bossMaps = null) {
   const rId = routeObj.id;
   const nodes = getPlayerNodes(rId);
+  const reserveSet = new Set(getReserveManualNodes());
+  const activeNodes = currentMap === 'STANDARD' ? nodes.filter(n => !reserveSet.has(n)) : nodes;
   const secs = getPlayerSections(rId);
   const isFlexible = (currentMap === 'STANDARD' && customState.assignmentMode === 'flexible');
   const playerName = getPlayerName(rId);
-  const variations = generateVariations(nodes);
+  const variations = generateVariations(activeNodes);
   const isCustom = Boolean(customState.customTeams[rId]);
   const activeTeam = getActiveTeam(rId, variations);
   const sc = getSlotCount();
   const baseSlots = Array.from({ length: sc }, (_, i) => activeTeam[i] || null);
-  const assigned = assignFights(nodes, baseSlots);
-  const { filled: slots, prefightFor, missing: missingPrefights } = fillPrefightSlots(baseSlots, assigned);
+  const assignedActive = assignFights(activeNodes, baseSlots);
+  const assignedByNode = new Map(assignedActive.map(a => [a.node, a]));
+  const assigned = nodes.map(n => {
+    if (reserveSet.has(n)) {
+      const f = getFightData(n);
+      return { node: n, defender: f.defender, defenderChamp: f.champ, covered: true, delegatedToReserve: true, attacker: null, fights: 0, prefights: [] };
+    }
+    return assignedByNode.get(n);
+  });
+  const { filled: slots, prefightFor, missing: missingPrefights } = fillPrefightSlots(baseSlots, assignedActive);
   const specialFights = getPlayerSpecialFights(rId, bossMaps);
-  const coveredCount = assigned.filter(a => a.covered).length;
-  const totalDefs = nodes.map(getFightData).filter(f => f.defender).length;
-  const isLoadingRoute = nodes.some(n => Boolean(data[n]?.defender) && loadingNodes.has(n));
+  const coveredCount = assignedActive.filter(a => a.covered).length;
+  const totalDefs = activeNodes.map(getFightData).filter(f => f.defender).length;
+  const isLoadingRoute = activeNodes.some(n => Boolean(data[n]?.defender) && loadingNodes.has(n));
   const cn = CLASS_NAMES();
 
   const loadingPill = isLoadingRoute
@@ -2033,8 +2157,9 @@ function renderRouteCardInPlan(routeObj, bossMaps = null) {
   }
 
   let fightsHtml = '';
+  const renderRowForRoute = a => renderFightRowHtml(a, rId, { delegatedToReserve: Boolean(a.delegatedToReserve) });
   if (filterUncoveredOnly) {
-    const uncoveredRows = assigned.filter(a => !a.covered && a.defender);
+    const uncoveredRows = assignedActive.filter(a => !a.covered && a.defender);
     fightsHtml = `
       <div class="section-divider s1-header" style="color:#fb7185;">
         <span class="section-badge s1" style="background:rgba(244,63,94,0.18);border-color:rgba(244,63,94,0.4);color:#fb7185;">⚠️</span>
@@ -2042,10 +2167,10 @@ function renderRouteCardInPlan(routeObj, bossMaps = null) {
       </div>
       ${uncoveredRows.map(f => renderFightRowHtml(f, rId)).join('')}`;
   } else if (currentMap === 'STANDARD' && nodes.length === 4) {
-    const s1Row1 = renderFightRowHtml(assigned[0], rId);
-    const s1Row2 = renderFightRowHtml(assigned[1], rId);
-    const s2Row1 = renderFightRowHtml(assigned[2], rId);
-    const s2Row2 = renderFightRowHtml(assigned[3], rId);
+    const s1Row1 = renderRowForRoute(assigned[0]);
+    const s1Row2 = renderRowForRoute(assigned[1]);
+    const s2Row1 = renderRowForRoute(assigned[2]);
+    const s2Row2 = renderRowForRoute(assigned[3]);
     const s1Label = isFlexible
       ? `<span>${t('section1Label')} · N${nodes[0]}, N${nodes[1]}</span>`
       : `<span>${t('section1Label')} · ${t('routeLabel')} ${secs.s1} (N${nodes[0]}, N${nodes[1]})</span>`;
@@ -2064,7 +2189,7 @@ function renderRouteCardInPlan(routeObj, bossMaps = null) {
       </div>
       ${s2Row1}${s2Row2}`;
   } else {
-    fightsHtml = assigned.map(f => renderFightRowHtml(f, rId)).join('');
+    fightsHtml = assigned.map(renderRowForRoute).join('');
   }
 
   const gn = typeof routeObj.name === 'function' ? routeObj.name() : routeObj.name;
@@ -2111,8 +2236,11 @@ function renderReserveCardInPlan(bossMaps = null) {
   const customTeam = customState.customTeams[rId] || [];
   const baseSlots = Array.from({ length: sc }, (_, i) => customTeam[i] || null);
 
+  const manualNodes = getReserveManualNodes();
+  const manualSet = new Set(manualNodes);
   const uncoveredNodes = getUncoveredPathNodes();
-  const assignedFightsList = uncoveredNodes.length > 0 ? assignFights(uncoveredNodes, baseSlots) : [];
+  const allReservePathNodes = Array.from(new Set([...manualNodes, ...uncoveredNodes])).sort((a, b) => a - b);
+  const assignedFightsList = allReservePathNodes.length > 0 ? assignFights(allReservePathNodes, baseSlots) : [];
   const specialFights = getPlayerSpecialFights(rId, bossMaps);
   const cn = CLASS_NAMES();
 
@@ -2143,16 +2271,61 @@ function renderReserveCardInPlan(bossMaps = null) {
       </div>`;
   }).join('');
 
+  // Build manual node assignment picker options (N1..N36 + N37..N50)
+  const pathOpts = [];
+  for (let n = 1; n <= 36; n++) {
+    if (manualSet.has(n)) continue;
+    const def = data[n]?.defender;
+    const pathNum = ((n - 1) % 9) + 1;
+    const secNum = n <= 18 ? 'S1' : 'S2';
+    const label = def ? `N${n} · ${def} (${t('routeLabel')} ${pathNum} ${secNum})` : `N${n} (${t('routeLabel')} ${pathNum} ${secNum})`;
+    pathOpts.push(`<option value="${n}">${label}</option>`);
+  }
+  const bossOpts = [];
+  for (let n = 37; n <= 50; n++) {
+    const def = data[n]?.defender;
+    const prefix = n <= 45 ? '⚡' : '💀';
+    const label = def ? `${prefix} N${n} · ${def}` : `${prefix} N${n}`;
+    bossOpts.push(`<option value="${n}">${label}</option>`);
+  }
+
+  const addNodeBarHtml = `
+    <div class="reserve-node-picker-bar">
+      <select class="reserve-add-node-select" id="reserveAddNodeSelect" aria-label="${t('assignNodeToReserve')}">
+        <option value="">${t('assignNodeToReserve')}</option>
+        <optgroup label="${t('reservePathNodesOpt')}">${pathOpts.join('')}</optgroup>
+        <optgroup label="${t('reserveBossNodesOpt')}">${bossOpts.join('')}</optgroup>
+      </select>
+    </div>`;
+
+  const manualFights = assignedFightsList.filter(f => manualSet.has(f.node));
+  const autoUncoveredFights = assignedFightsList.filter(f => !manualSet.has(f.node));
+
   let bannerHtml = '';
   let fightsHtml = '';
 
-  if (uncoveredNodes.length === 0) {
-    bannerHtml = `<div class="reserve-banner success">✅ ${t('reserveAllCovered')}</div>`;
-  } else {
-    bannerHtml = `<div class="reserve-banner info">🛡️ ${t('reserveCovering')} (${uncoveredNodes.length} ${uncoveredNodes.length === 1 ? t('nodeLabel') : t('nodeLabel') + 's'})</div>`;
-    fightsHtml = assignedFightsList.map(f => renderFightRowHtml(f, rId)).join('');
+  if (manualFights.length > 0) {
+    fightsHtml += `
+      <div class="section-divider" style="color:#fbbf24;">
+        <span class="section-badge" style="background:rgba(245,158,11,0.18);border-color:rgba(245,158,11,0.4);color:#fbbf24;">🛡️</span>
+        <span>${t('reserveManualNodesTitle')} (${manualFights.length})</span>
+      </div>
+      ${manualFights.map(f => renderFightRowHtml(f, rId, { isManualReserveNode: true })).join('')}`;
   }
+
+  if (autoUncoveredFights.length > 0) {
+    fightsHtml += `
+      <div class="section-divider" style="margin-top:${manualFights.length ? '8px' : '0'};color:#fb7185;">
+        <span class="section-badge" style="background:rgba(244,63,94,0.18);border-color:rgba(244,63,94,0.4);color:#fb7185;">⚠️</span>
+        <span>${t('reserveCovering')} (${autoUncoveredFights.length})</span>
+      </div>
+      ${autoUncoveredFights.map(f => renderFightRowHtml(f, rId)).join('')}`;
+  } else if (manualFights.length === 0 && specialFights.length === 0) {
+    bannerHtml = `<div class="reserve-banner success">✅ ${t('reserveAllCovered')}</div>`;
+  }
+
   const specialHtml = renderPlayerSpecialFightsHtml(specialFights);
+  const hasAnyResettable = customTeam.filter(Boolean).length > 0 || manualNodes.length > 0;
 
   return `
     <article class="assignment reserve-assignment" data-route="${rId}">
@@ -2170,11 +2343,12 @@ function renderReserveCardInPlan(bossMaps = null) {
           <span class="section-badge" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);">
             ${t('reservePlayer').toUpperCase()}
           </span>
-          ${customTeam.filter(Boolean).length ? `
+          ${hasAnyResettable ? `
             <button class="ghost-btn small reset-route-btn" data-route="${rId}">↺</button>` : ''}
         </div>
       </div>
       <div class="attacker-slots-container slots-${sc}">${slotsHtml}</div>
+      ${addNodeBarHtml}
       <div class="fights-section">
         <div class="fights-header">
           <span>${t('assignedFights')}</span>
@@ -2197,7 +2371,7 @@ function computeBossAssignments() {
 
   const pTeams = areas.routes.map(r => {
     const pn = getPlayerName(r.id);
-    const nodes = getPlayerNodes(r.id);
+    const nodes = getPlayerActiveNodes(r.id);
     const vs = generateVariations(nodes);
     const hasCustom = Boolean(customState.customTeams[r.id]?.length);
     return { routeId: r.id, key: String(r.id), playerName: pn, team: getActiveTeam(r.id, vs).filter(Boolean), isCustom: hasCustom };
@@ -2313,19 +2487,35 @@ function computeBossAssignments() {
     islandAssignments.set(node, cand);
   });
 
-  // 3. Boss Island (46..50)
+  // 3. Boss Island (46..50): respect Left (46, 48) vs Right (47, 49) flank restriction per player; Boss 50 open to both
+  const BOSS_LEFT = [46, 48];
+  const BOSS_RIGHT = [47, 49];
+  const bossPlayerFlank = new Map(); // playerKey -> 'left' | 'right'
+  bossAssignments.forEach((a, n) => {
+    if (a && a.routeId !== undefined && a.routeId !== null) {
+      if (BOSS_LEFT.includes(n)) bossPlayerFlank.set(String(a.routeId), 'left');
+      else if (BOSS_RIGHT.includes(n)) bossPlayerFlank.set(String(a.routeId), 'right');
+    }
+  });
+
   allBossNodes.forEach(node => {
     if (bossAssignments.has(node) || manualDisabled.has(node)) return;
+    const nodeFlank = BOSS_LEFT.includes(node) ? 'left' : (BOSS_RIGHT.includes(node) ? 'right' : null);
     const f = getFightData(node);
     const cands = [];
     if (f.defender) {
       pTeams.forEach(p => {
+        if (nodeFlank) {
+          const existingFlank = bossPlayerFlank.get(p.key);
+          if (existingFlank && existingFlank !== nodeFlank) return;
+        }
         p.team.forEach(att => {
           const cm = f.counters.find(c => c.name.toLowerCase() === att.toLowerCase());
           if (cm) {
             cands.push({
               player: p.playerName,
               routeId: p.routeId,
+              playerKey: p.key,
               attacker: att,
               champ: findChampion(att),
               fights: cm.fights || 1,
@@ -2337,6 +2527,7 @@ function computeBossAssignments() {
       cands.sort((a, b) => b.score - a.score);
       if (cands.length) {
         bossAssignments.set(node, cands[0]);
+        if (nodeFlank) bossPlayerFlank.set(cands[0].playerKey, nodeFlank);
       }
     }
   });
@@ -2481,7 +2672,7 @@ function openBossAssignModal(node) {
   const areas = getAreas();
   areas.routes.forEach(r => {
     const pn = getPlayerName(r.id);
-    const nodes = getPlayerNodes(r.id);
+    const nodes = getPlayerActiveNodes(r.id);
     const vs = generateVariations(nodes);
     const team = getActiveTeam(r.id, vs).filter(Boolean);
     pTeams.push({
@@ -2502,11 +2693,39 @@ function openBossAssignModal(node) {
     });
   }
 
+  const { islandAssignments, bossAssignments } = computeBossAssignments();
+  const isIslandNode = node >= 37 && node <= 45;
+  const isLeftFlank = node === 46 || node === 48;
+  const isRightFlank = node === 47 || node === 49;
+  const oppositeFlankNodes = isLeftFlank ? [47, 49] : (isRightFlank ? [46, 48] : []);
+
   const currentOverride = customState.islandOverrides?.[node];
   const listContainer = document.querySelector('#bossPlayerList');
 
   listContainer.innerHTML = pTeams.map(p => {
-    const isPlayerSelected = currentOverride && currentOverride.player === p.playerName;
+    const pKey = String(p.routeId);
+    const isPlayerSelected = currentOverride && String(currentOverride.routeId) === pKey;
+
+    // Detect restriction conflicts to warn user right in the modal
+    let conflictBadgeHtml = '';
+    if (isIslandNode) {
+      let existingIsland = null;
+      islandAssignments.forEach((a, n) => {
+        if (n !== node && String(a.routeId) === pKey) existingIsland = n;
+      });
+      if (existingIsland !== null) {
+        conflictBadgeHtml = `<span class="stat-detail" style="color:#fbbf24;font-weight:700;font-size:10px;">${t('alreadyAssignedIslandBadge')} N${existingIsland}</span>`;
+      }
+    } else if (oppositeFlankNodes.length) {
+      const oppConflict = oppositeFlankNodes.find(n => {
+        const a = bossAssignments.get(n);
+        return a && String(a.routeId) === pKey;
+      });
+      if (oppConflict !== undefined) {
+        conflictBadgeHtml = `<span class="stat-detail" style="color:#fbbf24;font-weight:700;font-size:10px;">${t('alreadyAssignedFlankBadge')} N${oppConflict}</span>`;
+      }
+    }
+
     const teamChipsHtml = p.team.length ? p.team.map(att => {
       const ch = findChampion(att);
       const isAttSelected = isPlayerSelected && currentOverride.attacker && currentOverride.attacker.toLowerCase() === att.toLowerCase();
@@ -2514,7 +2733,7 @@ function openBossAssignModal(node) {
       const fightsBadge = counterItem ? `<span class="stat-detail" style="color:var(--accent); font-weight:700;">★ ${counterItem.fights || 1} ${t('cebroBadge')}</span>` : '';
       return `
         <div class="boss-champ-select-chip ${isAttSelected ? 'active' : ''} ${counterItem ? 'recommended-match' : ''}"
-             onclick="selectBossAttacker(${node}, '${p.playerName}', '${p.routeId}', '${att}')">
+             data-boss-node="${node}" data-player="${p.playerName.replace(/"/g, '&quot;')}" data-route="${pKey}" data-attacker="${att.replace(/"/g, '&quot;')}">
           <img class="boss-champ-avatar" src="${ch?.image || ''}" alt=""/>
           <div style="display:flex; flex-direction:column; min-width:0;">
             <span style="font-weight:700; font-size:12px;">${att}</span>
@@ -2528,6 +2747,7 @@ function openBossAssignModal(node) {
         <div class="boss-player-meta">
           <strong>${p.playerName}</strong>
           <span class="stat-detail">${p.roleName}</span>
+          ${conflictBadgeHtml}
         </div>
         <div class="boss-player-team-chips">
           ${teamChipsHtml}
@@ -2535,14 +2755,78 @@ function openBossAssignModal(node) {
       </div>`;
   }).join('');
 
+  listContainer.querySelectorAll('.boss-champ-select-chip').forEach(chip => {
+    chip.onclick = () => {
+      selectBossAttacker(
+        parseInt(chip.dataset.bossNode, 10),
+        chip.dataset.player,
+        chip.dataset.route,
+        chip.dataset.attacker
+      );
+    };
+  });
+
   modal.style.display = 'flex';
 }
 
 function selectBossAttacker(node, playerName, routeId, attackerName) {
   if (!customState.islandOverrides) customState.islandOverrides = {};
+  const pKey = String(routeId);
+  const { islandAssignments, bossAssignments } = computeBossAssignments();
+
+  // Restriction 1: Mini-Boss Islands (N37..N45) -> max 1 island fight per summoner
+  if (node >= 37 && node <= 45) {
+    const conflicts = [];
+    islandAssignments.forEach((a, n) => {
+      if (n !== node && String(a.routeId) === pKey) {
+        const defName = data[n]?.defender;
+        conflicts.push({ node: n, label: defName ? `N${n} (${defName})` : `N${n}` });
+      }
+    });
+    if (conflicts.length) {
+      const conflictList = conflicts.map(c => c.label).join(', ');
+      const msg = `⚠️ ${playerName} ${t('confirmReplaceIsland')} ${conflictList}.\n${t('islandLimitRule')}\n\n${t('confirmMovePrompt')} N${node}?`;
+      if (!confirm(msg)) return;
+      // Release previous manual override(s) for this player on other island nodes
+      for (let n = 37; n <= 45; n++) {
+        if (n === node) continue;
+        const ov = customState.islandOverrides[n];
+        if (ov && ov !== '__none__' && String(ov.routeId) === pKey) {
+          delete customState.islandOverrides[n];
+        }
+      }
+    }
+  }
+
+  // Restriction 2: Boss Island Left (46, 48) vs Right (47, 49) -> cannot cross flanks
+  const isLeft = node === 46 || node === 48;
+  const isRight = node === 47 || node === 49;
+  if (isLeft || isRight) {
+    const oppNodes = isLeft ? [47, 49] : [46, 48];
+    const oppConflicts = [];
+    oppNodes.forEach(n => {
+      const a = bossAssignments.get(n);
+      if (a && String(a.routeId) === pKey) {
+        const defName = data[n]?.defender;
+        oppConflicts.push({ node: n, label: defName ? `N${n} (${defName})` : `N${n}` });
+      }
+    });
+    if (oppConflicts.length) {
+      const conflictList = oppConflicts.map(c => c.label).join(', ');
+      const msg = `⚠️ ${playerName} ${t('confirmReplaceBossFlank')} (${conflictList}).\n${t('bossFlankRule')}\n\n${t('confirmMovePrompt')} N${node}?`;
+      if (!confirm(msg)) return;
+      oppNodes.forEach(n => {
+        const ov = customState.islandOverrides[n];
+        if (ov && ov !== '__none__' && String(ov.routeId) === pKey) {
+          delete customState.islandOverrides[n];
+        }
+      });
+    }
+  }
+
   customState.islandOverrides[node] = {
     player: playerName,
-    routeId,
+    routeId: routeId === 'reserve' ? 'reserve' : (isNaN(parseInt(routeId, 10)) ? routeId : parseInt(routeId, 10)),
     attacker: attackerName
   };
   saveState();
@@ -2597,7 +2881,7 @@ function plan() {
   let routesList = areas.routes;
   if (filterUncoveredOnly) {
     routesList = areas.routes.filter(r => {
-      const nodes = getPlayerNodes(r.id);
+      const nodes = getPlayerActiveNodes(r.id);
       const vars = generateVariations(nodes);
       const team = getActiveTeam(r.id, vars);
       const sc = getSlotCount();
@@ -2611,7 +2895,8 @@ function plan() {
   let rh = routesList.map(r => renderRouteCardInPlan(r, bossMaps)).join('');
   if (currentMap === 'STANDARD') {
     const uncNodes = getUncoveredPathNodes();
-    if (!filterUncoveredOnly || uncNodes.length > 0) {
+    const resManual = getReserveManualNodes();
+    if (!filterUncoveredOnly || uncNodes.length > 0 || resManual.length > 0) {
       rh += renderReserveCardInPlan(bossMaps);
     }
   }
@@ -2643,11 +2928,24 @@ function plan() {
     btn.onclick = () => {
       delete customState.customTeams[btn.dataset.route];
       customState.selectedVariations[btn.dataset.route] = 0;
+      if (btn.dataset.route === 'reserve') {
+        customState.reserveNodes = [];
+      }
       saveState();
       plan();
       updateDashboard();
     };
   });
+
+  // Backup/Reserve manual node assignment selector
+  const reserveNodeSel = c.querySelector('#reserveAddNodeSelect');
+  if (reserveNodeSel) {
+    reserveNodeSel.onchange = () => {
+      if (reserveNodeSel.value) {
+        addNodeToReserve(reserveNodeSel.value);
+      }
+    };
+  }
 
   // Section select dropdowns in flexible mode
   c.querySelectorAll('.select-s1').forEach(sel => {
@@ -2688,8 +2986,8 @@ function plan() {
     el.onclick = () => openSlotPickerModal(el.dataset.route, parseInt(el.dataset.slot));
   });
 
-  // Fight attacker click (manual fight assignment)
-  c.querySelectorAll('.fight-attacker-side').forEach(el => {
+  // Fight attacker click (manual fight assignment for regular path/reserve rows)
+  c.querySelectorAll('.fight-attacker-side[data-fight-node]').forEach(el => {
     el.onclick = e => {
       if (e.target.closest('.remove-fight-btn')) return;
       const node = parseInt(el.dataset.fightNode);
@@ -2699,7 +2997,7 @@ function plan() {
   });
 
   // Remove fight assignment button (✕) - sets fight to unassigned without touching slots
-  c.querySelectorAll('.remove-fight-btn').forEach(btn => {
+  c.querySelectorAll('.remove-fight-btn[data-fight-node]').forEach(btn => {
     btn.onclick = e => {
       e.stopPropagation();
       const node = parseInt(btn.dataset.fightNode);
@@ -2728,7 +3026,7 @@ function updateDashboard() {
   const allPrefights = new Set();
 
   getAreas().routes.forEach(r => {
-    const nodes = getPlayerNodes(r.id);
+    const nodes = getPlayerActiveNodes(r.id);
     const vs = generateVariations(nodes), team = getActiveTeam(r.id, vs);
     assignFights(nodes, team).forEach(a => {
       if (data[a.node]?.defender) {
@@ -2747,13 +3045,18 @@ function updateDashboard() {
 
   if (currentMap === 'STANDARD') {
     const rTeam = (customState.customTeams['reserve'] || []).filter(Boolean);
-    if (rTeam.length && risk.length) {
-      const rAssigned = assignFights(risk, rTeam);
+    const resManual = getReserveManualNodes();
+    const reserveTargetNodes = Array.from(new Set([...resManual, ...risk]));
+    if (reserveTargetNodes.length) {
+      const rAssigned = assignFights(reserveTargetNodes, rTeam);
       rAssigned.forEach(a => {
+        if (!data[a.node]?.defender) return;
         if (a.covered && a.attacker) {
           covered++;
           usage[a.attacker] = (usage[a.attacker] || 0) + 1;
           risk = risk.filter(n => n !== a.node);
+        } else if (resManual.includes(a.node) && !risk.includes(a.node)) {
+          risk.push(a.node);
         }
       });
     }
@@ -3364,6 +3667,8 @@ document.querySelector('#clearAllBtn').onclick = () => {
     customState.customTeams = {};
     customState.selectedVariations = {};
     customState.fightOverrides = {};
+    customState.islandOverrides = {};
+    customState.reserveNodes = [];
     saveState();
     renderBoard();
     plan();
@@ -3376,6 +3681,8 @@ document.querySelector('#resetAllCustomBtn').onclick = () => {
   customState.selectedVariations = {};
   customState.fightOverrides = {};
   customState.pathSections = {};
+  customState.islandOverrides = {};
+  customState.reserveNodes = [];
   saveState();
   plan();
   updateDashboard();
